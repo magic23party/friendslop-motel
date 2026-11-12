@@ -124,6 +124,22 @@ namespace Friendslop.EditorTools
             return go;
         }
 
+        /// <summary>Материал для TextMesh с проверкой глубины (P1): текст не просвечивает сквозь стены.</summary>
+        static Material LabelMaterial()
+        {
+            if (labelFont == null) labelFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            string path = MatDir + "/Label3D.mat";
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (m == null)
+            {
+                m = new Material(Shader.Find("Friendslop/Label3D"));
+                AssetDatabase.CreateAsset(m, path);
+            }
+            m.mainTexture = labelFont.material.mainTexture;
+            EditorUtility.SetDirty(m);
+            return m;
+        }
+
         /// <summary>Текст в мире. faceDir — куда смотрит читатель (локально к parent); height — высота строки, м.</summary>
         static TextMesh Label(Transform parent, string text, Vector3 pos, Vector3 faceDir, float height, Color color, string name = "Label")
         {
@@ -138,7 +154,7 @@ namespace Friendslop.EditorTools
             tm.anchor = TextAnchor.MiddleCenter;
             tm.alignment = TextAlignment.Center;
             tm.color = color;
-            go.GetComponent<MeshRenderer>().sharedMaterial = labelFont.material;
+            go.GetComponent<MeshRenderer>().sharedMaterial = LabelMaterial();
             return tm;
         }
 
@@ -153,11 +169,11 @@ namespace Friendslop.EditorTools
             var white = new Color(0.95f, 0.95f, 0.9f);
 
             // ковёр коридора
-            Prim(PrimitiveType.Cube, "Carpet", root, new Vector3(0, 0.01f, 12.5f), new Vector3(36f, 0.02f, 3f), Mat("Carpet", new Color(0.45f, 0.18f, 0.2f)), false);
+            Prim(PrimitiveType.Cube, "Carpet", root, new Vector3(0, 0.01f, 12.5f), new Vector3(36f, 0.02f, 3f), Mat("Carpet", Palette.Carpet), false);
 
             // --- ресепшен
-            var desk = Prim(PrimitiveType.Cube, "ReceptionDesk", root, new Vector3(0, 0.55f, -13f), new Vector3(8f, 1.1f, 1.2f), Mat("Desk", new Color(0.4f, 0.28f, 0.18f)));
-            Label(root, "РЕСЕПШЕН", new Vector3(0, 2.4f, -13f), Vector3.back, 0.5f, white, "Label_Reception");
+            var desk = Prim(PrimitiveType.Cube, "ReceptionDesk", root, new Vector3(0, 0.55f, -13f), new Vector3(8f, 1.1f, 1.2f), Mat("Desk", Palette.WoodLight));
+            Label(root, "РЕСЕПШЕН", new Vector3(0, 2.45f, -13.08f), Vector3.back, 0.48f, white, "Label_Reception");
             map.receptionDesk = desk.transform;
 
             var forms = Empty("FormsStack", root, new Vector3(2.8f, 1.1f, -13f));
@@ -179,20 +195,19 @@ namespace Friendslop.EditorTools
             BuildKeyBoard(root, map);
 
             // --- склад (восток лобби): стеллажи и стойки с бесконечным запасом
-            var shelfMat = Mat("Shelf", new Color(0.45f, 0.45f, 0.5f));
             var shelves = new[]
             {
-                (ItemType.Towel, "Полотенца", -6.5f),
-                (ItemType.Soap, "Мыло", -9f),
-                (ItemType.Napkins, "Салфетки", -11.5f),
-                (ItemType.Mop, "Швабры", -14.5f),
-                (ItemType.Sledgehammer, "Кувалды", -17f),
+                (ItemType.Towel, "Полотенца", -6.5f, Palette.Towel),
+                (ItemType.Soap, "Мыло", -9f, Palette.Soap),
+                (ItemType.Napkins, "Салфетки", -11.5f, Palette.Napkins),
+                (ItemType.Mop, "Швабры", -14.5f, Palette.Mop),
+                (ItemType.Sledgehammer, "Кувалды", -17f, Palette.Hammer),
             };
-            Label(root, "СКЛАД", new Vector3(19.1f, 3.0f, -12f), Vector3.left, 0.6f, white, "Label_Storage");
+            Label(root, "СКЛАД", new Vector3(19.88f, 2.7f, -11.75f), Vector3.left, 0.4f, white, "Label_Storage");
             foreach (var s in shelves)
             {
                 var sh = Empty("Shelf_" + s.Item1, root, new Vector3(19.1f, 0, s.Item3));
-                Prim(PrimitiveType.Cube, "Rack", sh.transform, new Vector3(0, 0.5f, 0), new Vector3(1.0f, 1.0f, 1.8f), shelfMat);
+                Prim(PrimitiveType.Cube, "Rack", sh.transform, new Vector3(0, 0.5f, 0), new Vector3(1.0f, 1.0f, 1.8f), Mat("Shelf", Palette.Metal));
                 float lift = s.Item1 == ItemType.Mop ? 0.62f : s.Item1 == ItemType.Sledgehammer ? 0.42f : 0.05f;
                 for (int k = -1; k <= 1; k++)
                 {
@@ -202,20 +217,20 @@ namespace Friendslop.EditorTools
                     foreach (var c in vis.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(c);
                 }
                 Interactable<ItemSource>(sh).type = s.Item1;
-                Label(sh.transform, s.Item2, new Vector3(-0.1f, 2.7f, 0), Vector3.left, 0.3f, white);
+                DecorShelf(sh.transform, s.Item1, s.Item2, s.Item4);          // P1: стеллаж, коробки, цветная табличка
             }
 
             // --- налоговый терминал (запад лобби)
             var term = Empty("TaxTerminal", root, new Vector3(-19.3f, 0, -10f));
-            Prim(PrimitiveType.Cube, "Body", term.transform, new Vector3(0, 0.65f, 0), new Vector3(0.7f, 1.3f, 1.0f), Mat("Terminal", new Color(0.2f, 0.22f, 0.3f)));
-            Prim(PrimitiveType.Cube, "Screen", term.transform, new Vector3(0.36f, 0.95f, 0), new Vector3(0.04f, 0.5f, 0.7f), Mat("TerminalScreen", new Color(0.3f, 0.8f, 0.9f)), false);
+            Prim(PrimitiveType.Cube, "Body", term.transform, new Vector3(0, 0.65f, 0), new Vector3(0.7f, 1.3f, 1.0f), Mat("Terminal", Palette.MetalDark));
+            Prim(PrimitiveType.Cube, "Screen", term.transform, new Vector3(0.36f, 0.95f, 0), new Vector3(0.04f, 0.5f, 0.7f), MatE("TerminalScreen", new Color(0.3f, 0.8f, 0.9f), new Color(0.3f, 0.8f, 0.9f), 1.0f), false);
             Label(term.transform, "НАЛОГИ", new Vector3(0.1f, 1.9f, 0), Vector3.right, 0.35f, white);
             map.taxTerminal = term.transform;
             var tax = Interactable<TaxTerminal>(term);
             tax.screen = Label(term.transform, "", new Vector3(0.40f, 0.95f, 0), Vector3.right, 0.11f, new Color(0.1f, 0.25f, 0.3f), "ScreenText");
 
             // --- коридор и номера: 1..10 на север (z 14..20), 11..20 на юг (z 5..11), коридор z 11..14
-            var wallMat = Mat("Wall", new Color(0.75f, 0.72f, 0.66f));
+            
             for (int k = 0; k < 10; k++)
             {
                 float cx = -16.2f + 3.6f * k;
@@ -235,9 +250,9 @@ namespace Friendslop.EditorTools
             var bg = Empty("KeyBoard", root, new Vector3(0, 0, -10f));
             bg.AddComponent<NetworkObject>();
             var board = bg.AddComponent<KeyBoard>();
-            Prim(PrimitiveType.Cube, "Panel", bg.transform, new Vector3(0, 1.6f, 0), new Vector3(10.8f, 2.4f, 0.15f), Mat("BoardPanel", new Color(0.30f, 0.20f, 0.12f)));
-            Label(bg.transform, "КЛЮЧИ", new Vector3(0, 3.05f, 0.1f), Vector3.forward, 0.5f, Color.white, "Label_Keys");
-            var plateMat = Mat("KeyPlate", new Color(0.55f, 0.55f, 0.58f));
+            Prim(PrimitiveType.Cube, "Panel", bg.transform, new Vector3(0, 1.6f, 0), new Vector3(10.8f, 2.4f, 0.15f), Mat("BoardPanel", Palette.Wood));
+            Label(bg.transform, "КЛЮЧИ", new Vector3(0, 2.66f, 0.1f), Vector3.forward, 0.3f, Palette.Cream, "Label_Keys");
+            var plateMat = Mat("KeyPlate", Palette.TealDark);
             var gold = Mat("ItemKey", new Color(0.95f, 0.78f, 0.15f));
             board.slots = new KeySlot[KeyBoard.Slots];
             for (int i = 0; i < KeyBoard.Slots; i++)
@@ -248,6 +263,7 @@ namespace Friendslop.EditorTools
                 var kv = Empty("Key", sl.transform, new Vector3(0, 0.08f, 0.05f));
                 Prim(PrimitiveType.Cube, "Bar", kv.transform, new Vector3(0, -0.04f, 0), new Vector3(0.07f, 0.26f, 0.03f), gold, false);
                 Prim(PrimitiveType.Cylinder, "Ring", kv.transform, new Vector3(0, 0.13f, 0), new Vector3(0.16f, 0.015f, 0.16f), gold, false).transform.localRotation = Quaternion.Euler(90f, 0, 0);
+                Cyl(sl.transform, "Peg", new Vector3(0, 0.22f, 0.06f), 0.05f, 0.08f, Mat("KeyPeg", Palette.Metal), new Vector3(90f, 0, 0));
                 Label(sl.transform, (i + 1).ToString(), new Vector3(0, -0.28f, 0.04f), Vector3.forward, 0.16f, Color.white, "Num");
                 var ks = Interactable<KeySlot>(sl);
                 ks.room = i + 1;
@@ -260,7 +276,7 @@ namespace Friendslop.EditorTools
         static void BuildRoom(Transform root, int index, Vector3 pos, float yRot, ItemDb db)
         {
             const float D = 6f, H = 3f, T = 0.1f;
-            var wall = Mat("Wall", new Color(0.75f, 0.72f, 0.66f));
+            var wall = Mat("Wall", Palette.Wall);
             var go = new GameObject("Room_" + index);
             go.transform.SetParent(root, false);
             go.transform.position = pos;
@@ -276,13 +292,14 @@ namespace Friendslop.EditorTools
             Prim(PrimitiveType.Cube, "Front_R", t, new Vector3(1.2f, H / 2, 0), new Vector3(1.2f, H, T), wall);
             Prim(PrimitiveType.Cube, "Front_L", t, new Vector3(-1.2f, H / 2, 0), new Vector3(1.2f, H, T), wall);
             Prim(PrimitiveType.Cube, "Lintel", t, new Vector3(0, 2.6f, 0), new Vector3(1.2f, 0.8f, T), wall);
-            Prim(PrimitiveType.Cube, "FloorTile", t, new Vector3(0, 0.01f, D / 2), new Vector3(3.4f, 0.02f, D - 0.2f), Mat("RoomFloor", new Color(0.62f, 0.56f, 0.5f)), false);
+            Prim(PrimitiveType.Cube, "FloorTile", t, new Vector3(0, 0.01f, D / 2), new Vector3(3.4f, 0.02f, D - 0.2f), Mat("RoomFloor", Palette.RoomCarpet), false);
 
-            room.bed = Prim(PrimitiveType.Cube, "Bed", t, new Vector3(-0.85f, 0.3f, D - 1.1f), new Vector3(1.3f, 0.6f, 2.0f), Mat("Bed", new Color(0.35f, 0.4f, 0.65f))).transform;
+            room.bed = Prim(PrimitiveType.Cube, "Bed", t, new Vector3(-0.85f, 0.3f, D - 1.1f), new Vector3(1.3f, 0.6f, 2.0f), Mat("Bed", Palette.WoodDark)).transform;
             var bedSpot = Interactable<RoomSpot>(room.bed.gameObject);
             bedSpot.room = room; bedSpot.kind = SpotKind.Bed;
-            Prim(PrimitiveType.Cube, "Pillow", t, new Vector3(-0.85f, 0.66f, D - 0.4f), new Vector3(0.9f, 0.12f, 0.4f), Mat("Pillow", new Color(0.95f, 0.95f, 0.95f)), false);
-            Prim(PrimitiveType.Cube, "Table", t, new Vector3(1.35f, 0.4f, 4.6f), new Vector3(0.6f, 0.8f, 1.8f), Mat("Table", new Color(0.5f, 0.36f, 0.22f)));
+            Prim(PrimitiveType.Cube, "Pillow", t, new Vector3(-1.12f, 0.82f, D - 0.5f), new Vector3(0.5f, 0.14f, 0.38f), Mat("Pillow", Palette.Cream), false);
+            Prim(PrimitiveType.Cube, "Pillow2", t, new Vector3(-0.58f, 0.82f, D - 0.5f), new Vector3(0.5f, 0.14f, 0.38f), Mat("Pillow", Palette.Cream), false);
+            Prim(PrimitiveType.Cube, "Table", t, new Vector3(1.35f, 0.4f, 4.6f), new Vector3(0.6f, 0.8f, 1.8f), Mat("Table", Palette.Wood));
 
             // точки под расходники на столике: полотенце, мыло, салфетки
             var supplyColors = new[] { new Color(0.35f, 0.65f, 0.95f), new Color(0.95f, 0.55f, 0.75f), new Color(0.98f, 0.95f, 0.7f) };
@@ -305,7 +322,7 @@ namespace Friendslop.EditorTools
 
             // пятно: точка + скрытый визуал
             var sp = Empty("StainPoint", t, new Vector3(0.2f, 0.02f, 2.6f));
-            var stain = Prim(PrimitiveType.Cylinder, "Stain", sp.transform, Vector3.zero, new Vector3(1.0f, 0.01f, 1.0f), Mat("Stain", new Color(0.25f, 0.16f, 0.08f)), false);
+            var stain = Prim(PrimitiveType.Cylinder, "Stain", sp.transform, Vector3.zero, new Vector3(1.0f, 0.01f, 1.0f), Mat("Stain", new Color(0.22f, 0.13f, 0.06f)), false);
             var stainCol = stain.AddComponent<BoxCollider>();      // плоский, чтобы в пятно можно было прицелиться шваброй
             stainCol.size = new Vector3(1f, 2f, 1f);
             stain.SetActive(false);
@@ -320,16 +337,17 @@ namespace Friendslop.EditorTools
             room.inside = Empty("Inside", t, new Vector3(0, 0, 1.5f)).transform;
 
             // табличка над дверью (лицом в коридор: читатель на -Z)
-            Prim(PrimitiveType.Cube, "SignPlate", t, new Vector3(0, 2.6f, -0.07f), new Vector3(1.2f, 0.7f, 0.04f), Mat("Sign", new Color(0.12f, 0.12f, 0.15f)), false);
-            room.signNumber = Label(t, index.ToString(), new Vector3(-0.38f, 2.6f, -0.1f), Vector3.back, 0.45f, Color.white, "SignNumber");
+            Prim(PrimitiveType.Cube, "SignPlate", t, new Vector3(0, 2.6f, -0.07f), new Vector3(1.2f, 0.7f, 0.04f), Mat("Sign", Palette.TealDark), false);
+            room.signNumber = Label(t, index.ToString(), new Vector3(-0.34f, 2.6f, -0.1f), Vector3.back, 0.6f, Color.white, "SignNumber");
             room.signStatus = Label(t, "", new Vector3(0.22f, 2.6f, -0.1f), Vector3.back, 0.11f, new Color(1f, 0.9f, 0.5f), "SignStatus");
 
             // стена-заглушка в проёме, пока номер закрыт (Room сам включает/выключает)
-            var blocker = Prim(PrimitiveType.Cube, "Blocker", t, new Vector3(0, 1.1f, 0), new Vector3(1.2f, 2.2f, 0.12f), Mat("Blocker", new Color(0.45f, 0.4f, 0.38f)));
+            var blocker = Prim(PrimitiveType.Cube, "Blocker", t, new Vector3(0, 1.1f, 0), new Vector3(1.2f, 2.2f, 0.12f), Mat("Blocker", Palette.Wood));
             var obs = blocker.AddComponent<NavMeshObstacle>();
             obs.carving = true; obs.shape = NavMeshObstacleShape.Box; obs.size = Vector3.one;
             blocker.SetActive(false);
             room.blocker = blocker;
+            DecorRoom(t, index, blocker);                          // P1: интерьер номера, дверная коробка, ручка
         }
     }
 }

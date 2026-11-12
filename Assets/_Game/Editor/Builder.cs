@@ -155,6 +155,7 @@ namespace Friendslop.EditorTools
             var cam = camGo.AddComponent<Camera>();
             cam.nearClipPlane = 0.05f; cam.fieldOfView = 75f; cam.enabled = false;
             camGo.tag = "MainCamera";
+            SetupCamera(cam);                            // P1: post-processing, SMAA, ночной фон
             var listener = camGo.AddComponent<AudioListener>();
             listener.enabled = false;
 
@@ -246,17 +247,10 @@ namespace Friendslop.EditorTools
         static void BuildMotelScene(GameConfig cfg, ItemDb db)
         {
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            RenderSettings.skybox = null;
-            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.50f, 0.50f, 0.55f);
+            BuildLightingAndPost();                      // P1: лунный свет, ambient, туман, Volume (tonemapping/bloom/vignette)
 
-            var lightGo = new GameObject("Sun");
-            lightGo.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
-            var light = lightGo.AddComponent<Light>();
-            light.type = LightType.Directional; light.intensity = 1.0f; light.shadows = LightShadows.Soft;
-
-            var floor = Mat("Floor", new Color(0.55f, 0.50f, 0.42f));
-            var wall = Mat("Wall", new Color(0.75f, 0.72f, 0.66f));
+            var floor = Mat("Floor", Palette.Floor);
+            var wall = Mat("Wall", Palette.Wall);
             Prim(PrimitiveType.Cube, "Floor", null, new Vector3(0, -0.1f, 0), new Vector3(40, 0.2f, 40), floor);
             const float h = 3f;
             Prim(PrimitiveType.Cube, "Wall_N", null, new Vector3(0, h / 2, 20.1f), new Vector3(40.4f, h, 0.2f), wall);
@@ -264,7 +258,7 @@ namespace Friendslop.EditorTools
             Prim(PrimitiveType.Cube, "Wall_E", null, new Vector3(20.1f, h / 2, 0), new Vector3(0.2f, h, 40.4f), wall);
             Prim(PrimitiveType.Cube, "Wall_W", null, new Vector3(-20.1f, h / 2, 0), new Vector3(0.2f, h, 40.4f), wall);
             // цветные столбы-ориентиры в углах
-            var cols = new[] { Color.red, Color.blue, Color.green, Color.yellow };
+            var cols = new[] { Palette.Teal, Palette.Red, Palette.Mustard, new Color(0.25f, 0.35f, 0.75f) };
             for (int i = 0; i < 4; i++)
                 Prim(PrimitiveType.Cube, "Pillar_" + i, null, new Vector3(i % 2 == 0 ? -17f : 17f, 1.5f, i < 2 ? 2.5f : -17f),
                     new Vector3(1.2f, 3f, 1.2f), Mat("Pillar" + i, cols[i]));
@@ -287,13 +281,14 @@ namespace Friendslop.EditorTools
             hud.config = cfg;
 
             BuildMotelLayout(cfg, db);                   // C2: лобби, склад, доска ключей, коридор с номерами
+            BuildDecor();                                // P1: потолок, окна, плитка, ресепшен, коридор, улица (без коллайдеров)
             BuildGuestSystems(cfg);                      // C4: спавнер гостей
             BakeNavMesh();                               // C4: NavMeshSurface (после всей геометрии)
 
             var fb = new GameObject("FallbackCamera");
             fb.transform.position = new Vector3(0, 6f, -14f);
             fb.transform.rotation = Quaternion.Euler(20f, 0f, 0f);
-            fb.AddComponent<Camera>();
+            SetupCamera(fb.AddComponent<Camera>());
             fb.AddComponent<AudioListener>();
             fb.AddComponent<FallbackCamera>();
 

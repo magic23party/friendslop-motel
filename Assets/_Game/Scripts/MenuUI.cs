@@ -33,7 +33,8 @@ namespace Friendslop
             // отладочные ключи командной строки (для автотеста двух экземпляров)
             var n = NetBootstrap.ArgValue("-nick");
             if (!string.IsNullOrEmpty(n)) nick = n;
-            if (NetBootstrap.Arg("-autohost")) CreateHost();
+            if (NetBootstrap.Arg("-shot")) { ShotRunner.Create(); CreateHost(); }       // P1: режим скриншотов
+            else if (NetBootstrap.Arg("-autohost")) CreateHost();
             else if (NetBootstrap.Arg("-autojoin")) { ip = NetBootstrap.ArgValue("-autojoin") ?? ip; Join(); }
         }
 
