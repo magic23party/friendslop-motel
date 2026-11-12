@@ -60,6 +60,7 @@ namespace Friendslop
             nt = GetComponent<NetworkTransform>();
             combat = GetComponent<PlayerCombat>();
             All.Add(this);
+            if (GetComponent<Footsteps>() == null) gameObject.AddComponent<Footsteps>();
             cc.enabled = false;
             if (humanoid != null)
             {
@@ -139,6 +140,11 @@ namespace Friendslop
             downBlend = Mathf.MoveTowards(downBlend, down ? 1f : 0f, Time.deltaTime * 4f);
             camPivot.localPosition = new Vector3(0f, Mathf.Lerp(1.62f, 0.25f, downBlend), 0f);
             camPivot.localRotation = Quaternion.Slerp(Quaternion.Euler(pitch, 0f, 0f), Quaternion.Euler(-8f, 0f, 70f), downBlend);
+        }
+
+        void LateUpdate()
+        {
+            if (IsSpawned && IsOwner && Placed && cam != null) CameraShake.Apply(cam.transform, Time.deltaTime);   // тряска от ударов (P3)
         }
 
         /// <summary>Скриншоты (P2): поставить игрока в точку и повернуть (yaw/pitch в градусах).</summary>

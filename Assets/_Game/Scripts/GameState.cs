@@ -50,6 +50,8 @@ namespace Friendslop
         public override void OnNetworkSpawn()
         {
             Instance = this;
+            GameConfig.Active = config;
+            TaxDue.OnValueChanged += OnTaxDueChanged;
             if (IsServer)
             {
                 Money.Value = config.startMoney;
@@ -57,7 +59,27 @@ namespace Friendslop
             }
         }
 
-        public override void OnNetworkDespawn() { if (Instance == this) Instance = null; }
+        public override void OnNetworkDespawn()
+        {
+            TaxDue.OnValueChanged -= OnTaxDueChanged;
+            if (Instance == this) Instance = null;
+        }
+
+        /// <summary>Счёт выставлен — тревога у всех (2D: сигнал не привязан к месту).</summary>
+        void OnTaxDueChanged(bool was, bool now)
+        {
+            if (now) Sfx.Play2D(Snd.Alarm, 0.8f);
+        }
+
+        /// <summary>Место всплывашки денег по умолчанию — над стойкой ресепшена (касса).</summary>
+        Vector3 CashPos()
+        {
+            var map = MotelMap.Instance;
+            return map != null && map.receptionDesk != null ? map.receptionDesk.position + new Vector3(-1.2f, 1.0f, 0.7f) : Vector3.up * 2f;
+        }
+
+        [Rpc(SendTo.Everyone)]
+        void MoneyFxRpc(int delta, Vector3 pos) { Fx.Money(delta, pos); }
 
         void Update()
         {
@@ -108,11 +130,12 @@ namespace Friendslop
         // ------------------------------------------------------------ касса
 
         /// <summary>Сервер: положить в кассу (delta>0, учитывается в «заработано») или снять штраф (delta&lt;0). Касса не уходит в минус.</summary>
-        public void ServerAddMoney(int delta)
+        public void ServerAddMoney(int delta, Vector3? at = null)
         {
             if (!IsServer || delta == 0) return;
             Money.Value = Mathf.Max(0, Money.Value + delta);
             if (delta > 0) Earned.Value += delta;
+            MoneyFxRpc(delta, at ?? CashPos());          // «+50 $» / «-5 $» в мире и звук кассы — у всех клиентов
             Debug.Log($"[MONEY] {delta:+0;-0} -> {Money.Value}");
         }
 
@@ -121,6 +144,8 @@ namespace Friendslop
         {
             if (!IsServer || Phase.Value != GamePhase.Playing || !TaxDue.Value || Money.Value < config.taxAmount) return false;
             Money.Value -= config.taxAmount;
+            var map = MotelMap.Instance;
+            MoneyFxRpc(-config.taxAmount, map != null && map.taxTerminal != null ? map.taxTerminal.position + Vector3.up * 1.7f : CashPos());
             TaxDue.Value = false;
             TaxTime.Value = Now + TaxInterval;
             Debug.Log($"[TAX] paid {config.taxAmount} $, money={Money.Value}, next invoice in {TaxInterval:0}s");

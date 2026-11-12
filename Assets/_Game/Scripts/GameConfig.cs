@@ -72,5 +72,22 @@ namespace Friendslop
         public float throwForce = 6f;
         public float hitCooldown = 0.6f;
         public float hitDistance = 2.2f;
+
+        [Header("Звук и эффекты (P3)")]
+        [Range(0f, 1f)] public float sfxVolume = 0.7f;      // мир (3D): удары, звонок, касса, шаги
+        [Range(0f, 1f)] public float uiVolume = 0.6f;       // интерфейс (2D): клики
+        public float sfxMinDistance = 2.5f;                 // до этого расстояния громкость полная
+        public float sfxMaxDistance = 26f;                  // дальше — тишина (линейное затухание)
+        public float stepDistance = 1.7f;                   // шаг каждые N м пути
+        [Range(0f, 2f)] public float shakeScale = 1f;       // сила тряски камеры (0 — выключить)
+        public float shakeHit = 0.32f;                      // тряска у бьющего (0..1)
+        public float shakeHurt = 0.6f;                      // тряска у пострадавшего
+        public float floatTextLife = 1.5f;                  // «+50 $» живёт N с
+
+        // материалы эффектов (ссылки нужны, чтобы шейдеры попали в билд; ставит Builder)
+        [HideInInspector] public Material fxLabelMat, fxChipMat;
+
+        /// <summary>Активный конфиг (ставят GameState и меню): им пользуются звук и эффекты.</summary>
+        public static GameConfig Active;
     }
 }

@@ -1,0 +1,82 @@
+# P3: отклик (juice) и UI — HUD со значками задач, подсветка под прицелом, удар/звёздочки, «+50 $», Game Over
+# запуск: powershell -ExecutionPolicy Bypass -File tools/shots.ps1 -Label p3 -ShotFile tools/shots_p3.txt   (меню: tools/shot_menu.ps1)
+spawner off
+view fp
+
+# --- HUD: касса, налог (счёт выставлен), задачи со значками, гость у стойки, ключ на полу
+room 3 needs 7 stain
+room 5 needs 1
+room 6 needs 2
+room 8 needs 5
+taxdue 1
+item Key 7 8 0.05 -3 30
+guestlive
+wait 10
+player 12 0 1 227 3
+held none
+uishotfp p3_hud_tasks 0.5
+
+# --- HUD с предметом в руках
+held Napkins
+player 6 0 -2 215 5
+uishotfp p3_hud_held 0.5
+held none
+taxdue 0
+clearguests
+clearitems
+
+# --- подсветка под прицелом (до/после): предмет на полу
+item Towel 0 0.3 0.05 2 20
+player 0.3 0 3.3 180 50
+uishotfp p3_aim_off 0.5
+hl item
+uishotfp p3_aim_highlight 0.8
+hl none
+clearitems
+
+# --- удар: гость, кувалда, искры
+guest 44 0 0 0 90
+view tp
+held Sledgehammer
+player -1.3 0 0 90 0
+swing 0.5
+cam -0.3 1.5 -2.5 -0.35 1.3 0 52
+fx hit -0.25 1.45 0
+uishot p3_hit 0.12
+fx hit -0.25 1.45 0
+uishot p3_hit_late 0.3
+swing -1
+clearguests
+held none
+
+# --- звёздочки над оглушённым: гость и игрок
+guest 31 0 0 0 90 down
+shot p3_stars_guest -1.2 1.4 -2.7 -1.2 0.6 0 52
+clearguests
+player 3 0 0 90 0
+knock 1
+wait 1.2
+shot p3_stars_player 1.6 1.5 -2.6 1.6 0.6 0 52
+knock 0
+view fp
+
+# --- кувалда от 1-го лица: тёмный металл бойка
+player 0 0 1 180 6
+held Sledgehammer
+shotfp p3_fp_sledge
+swing 0.5
+shotfp p3_fp_sledge_swing
+swing -1
+held none
+
+# --- «+50 $» у кассы и штраф
+cam -3.0 1.7 -11.2 -1.2 1.9 -12.3 66
+fx money 50 -1.2 1.4 -12.3
+uishot p3_money_plus 0.35
+fx money -5 -1.2 1.4 -12.3
+uishot p3_money_minus 0.35
+
+# --- Game Over
+gameover
+wait 1
+uishot p3_gameover 0.5

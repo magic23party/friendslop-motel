@@ -68,3 +68,14 @@ MonoBehaviour:
   throwForce: 6
   hitCooldown: 0.6
   hitDistance: 2.2
+  sfxVolume: 0.7
+  uiVolume: 0.6
+  sfxMinDistance: 2.5
+  sfxMaxDistance: 26
+  stepDistance: 1.7
+  shakeScale: 1
+  shakeHit: 0.32
+  shakeHurt: 0.6
+  floatTextLife: 1.5
+  fxLabelMat: {fileID: 2100000, guid: 21ce5d06384ea4f4abe4321cba18293e, type: 2}
+  fxChipMat: {fileID: 2100000, guid: 56e924dc45619df4598c9ee6b2205b86, type: 2}

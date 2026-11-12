@@ -18,6 +18,7 @@ namespace Friendslop
         public GameConfig config;
 
         float nextBrawlAt, nextDrainAt;
+        Vector3 brawlSpot;
         bool wasPlaying, wasActive;
         readonly List<Guest> pool = new List<Guest>();
 
@@ -44,7 +45,7 @@ namespace Friendslop
             {
                 nextDrainAt += drainEvery;
                 int fine = Mathf.RoundToInt(config.brawlDrainAmount);
-                gs.ServerAddMoney(-fine);
+                gs.ServerAddMoney(-fine, brawlSpot + Vector3.up * 2.4f);
                 Debug.Log($"[FIGHT] brawl fine -{fine} $ (till {gs.Money.Value})");
             }
 
@@ -73,6 +74,7 @@ namespace Friendslop
             var b = pool[Random.Range(0, pool.Count)];
 
             var c = map.corridorPoint.position + Vector3.right * Random.Range(-config.brawlSpread, config.brawlSpread);
+            brawlSpot = c;
             a.ServerStartBrawl(c + Vector3.left * 0.45f, b);
             b.ServerStartBrawl(c + Vector3.right * 0.45f, a);
             Debug.Log($"[FIGHT] brawl starts in the corridor (x={c.x:0.0})");

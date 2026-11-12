@@ -32,6 +32,8 @@ namespace Friendslop
 
         // клиент-владелец
         public IInteractable Target { get; private set; }
+        /// <summary>Скриншоты (P3): принудительная цель под прицелом (подсветка и подсказка без мыши).</summary>
+        public IInteractable ShotAim;
         public string HintText { get; private set; } = "";
 
         // сервер: состояние ЛКМ этого игрока (для удержания швабры)
@@ -79,13 +81,19 @@ namespace Friendslop
         {
             Held.OnValueChanged -= OnHeldChanged;
             All.Remove(this);
-            if (Local == this) Local = null;
+            if (Local == this) { Local = null; Highlight.Set(null, false); }
             // игрок вышел с предметом в руках (ключ!) — оставить его на полу
             if (IsServer && !Held.Value.IsNone && NetworkManager != null && !NetworkManager.ShutdownInProgress)
                 WorldItem.Spawn(Held.Value, transform.position + Vector3.up * 1.2f, Vector3.zero);
         }
 
-        void OnHeldChanged(HeldItem prev, HeldItem now) { RefreshVisual(); }
+        void OnHeldChanged(HeldItem prev, HeldItem now)
+        {
+            RefreshVisual();
+            var at = transform.position + Vector3.up * 1.2f;
+            if (!now.IsNone && prev.IsNone) Sfx.Play3D(Snd.Pickup, at, 0.7f, UnityEngine.Random.Range(0.95f, 1.08f));      // взял
+            else if (now.IsNone && !prev.IsNone) Sfx.Play3D(Snd.Put, at, 0.7f, UnityEngine.Random.Range(0.95f, 1.05f));   // положил / отдал / бросил
+        }
 
         void RefreshVisual()
         {
@@ -125,6 +133,7 @@ namespace Friendslop
         void LateUpdate()
         {
             if (!IsSpawned || !IsOwner || handView == null) return;
+            Highlight.Tick();
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
             var p = transform.position;
@@ -166,7 +175,7 @@ namespace Friendslop
             {
                 var gs = GameState.Instance;
                 if (gs == null) return false;
-                gs.ServerAddMoney(item.arg);
+                gs.ServerAddMoney(item.arg, Eye + transform.forward * 1.3f + Vector3.up * 0.2f);
                 return true;
             }
             if (!Held.Value.IsNone) return false;
@@ -205,18 +214,27 @@ namespace Friendslop
             if (IsServer && UseDown && Held.Value.IsNone) UseDown = false;
             if (!IsOwner || pc == null) return;
 
+            if (ShotAim != null)         // скриншоты (P3): цель зафиксирована командой, фокус окна не нужен
+            {
+                Target = ShotAim;
+                HintText = Target.Hint(Held.Value) ?? "";
+                Highlight.Set(Target as Component, HintText != "" && HintText != Interact.Busy);
+                return;
+            }
             if (TestMode && pc.Placed) SelfTestStep();       // в batchmode нет фокуса/ввода
             var kb = Keyboard.current;
             var ms = Mouse.current;
             if (!pc.Placed || pc.MenuOpen || Downed || !Application.isFocused || kb == null || ms == null || pc.cam == null)
             {
                 Target = null; HintText = "";
+                Highlight.Set(null, false);
                 SendUse(false, null);
                 return;
             }
 
             Target = Aim();
             HintText = Target != null ? (Target.Hint(Held.Value) ?? "") : "";
+            Highlight.Set(Target as Component, HintText != "" && HintText != Interact.Busy);      // подсветка у владельца (P3)
 
             if (kb.eKey.wasPressedThisFrame && Target != null)
             {

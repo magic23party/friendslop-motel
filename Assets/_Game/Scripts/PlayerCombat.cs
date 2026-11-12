@@ -24,6 +24,7 @@ namespace Friendslop
         PlayerController pc;
         Transform visual;                   // коллайдер-капсула + модель человечка: ложится на пол при отключке
         Humanoid humanoid;
+        StunStars stars;
 
         // сервер
         float nextHitAt, downUntil, lastTakenAt;
@@ -58,9 +59,15 @@ namespace Friendslop
             hands = GetComponent<PlayerHands>();
             pc = GetComponent<PlayerController>();
             All.Add(this);
+            IsDown.OnValueChanged += OnDownChanged;
         }
 
-        public override void OnNetworkDespawn() { All.Remove(this); }
+        public override void OnNetworkDespawn() { All.Remove(this); IsDown.OnValueChanged -= OnDownChanged; }
+
+        void OnDownChanged(bool was, bool now)
+        {
+            if (now) Sfx.Play3D(Snd.Thud, transform.position + Vector3.up * 0.4f, 1f);      // падение: слышно всем рядом
+        }
 
         // ------------------------------------------------------------ сервер: удар кувалдой
 
@@ -86,6 +93,7 @@ namespace Friendslop
 
             int n = Physics.RaycastNonAlloc(origin, dir, buf, cfg.hitDistance, HitMask, QueryTriggerInteraction.Ignore);
             float best = float.MaxValue;
+            Vector3 point = origin + dir * cfg.hitDistance;
             Guest guest = null; PlayerCombat other = null;
             for (int i = 0; i < n; i++)
             {
@@ -94,9 +102,11 @@ namespace Friendslop
                 var self = h.collider.GetComponentInParent<PlayerCombat>();
                 if (self == this) continue;
                 best = h.distance;
+                point = h.point;
                 guest = h.collider.GetComponentInParent<Guest>();
                 other = self;                // null, если это стена/мебель — она перекрывает луч
             }
+            if (guest != null || other != null) HitFxRpc(point);       // искры, звук и тряска у бьющего — у всех клиентов
             if (guest != null) { guest.ServerHit(hands); Debug.Log($"[FIGHT] {name} hit guest"); }
             else if (other != null)
             {
@@ -148,10 +158,33 @@ namespace Friendslop
         void HitRpc(Vector3 origin, Vector3 dir) { ServerStrike(origin, dir); }
 
         [Rpc(SendTo.Everyone)]
-        void SwingRpc() { swingT = SwingTime; }
+        void SwingRpc()
+        {
+            swingT = SwingTime;
+            Sfx.Play3D(Snd.Whoosh, transform.position + Vector3.up * 1.4f, 0.7f, Random.Range(0.92f, 1.08f));
+        }
 
+        /// <summary>Удар попал (RPC всем): искры и звук в точке попадания; бьющему — лёгкая тряска камеры.</summary>
         [Rpc(SendTo.Everyone)]
-        void HurtRpc() { flashT = FlashTime; if (IsOwner) screenFlash = 0.35f; }
+        void HitFxRpc(Vector3 point)
+        {
+            Fx.Hit(point);
+            Sfx.Play3D(Snd.Hit, point, 1f, Random.Range(0.9f, 1.1f));
+            var cfg = GameConfig.Active;
+            if (IsOwner && cfg != null) CameraShake.Add(cfg.shakeHit);
+        }
+
+        /// <summary>Игрока ударили (RPC всем): вспышка модели, красный экран и тряска камеры — у пострадавшего.</summary>
+        [Rpc(SendTo.Everyone)]
+        void HurtRpc()
+        {
+            flashT = FlashTime;
+            Sfx.Play3D(Snd.Hit, transform.position + Vector3.up * 1.2f, 0.9f, Random.Range(0.85f, 1.0f));
+            if (!IsOwner) return;
+            screenFlash = 0.35f;
+            var cfg = GameConfig.Active;
+            if (cfg != null) CameraShake.Add(cfg.shakeHurt);
+        }
 
         float nextLocalHit;
 
@@ -200,6 +233,10 @@ namespace Friendslop
                 humanoid.SetFlash(IsOwner ? 0f : flashT / FlashTime);
             }
             if (screenFlash > 0f) screenFlash = Mathf.Max(0f, screenFlash - dt);
+
+            // «звёздочки» над оглушённым (видны всем: IsDown — NetworkVariable)
+            if (stars == null && IsDown.Value) stars = StunStars.Attach(transform);
+            if (stars != null) stars.Tick(IsDown.Value, lie, dt);
         }
 
         void OnGUI()
@@ -218,7 +255,7 @@ namespace Friendslop
             }
             if (down)
             {
-                Ui.Panel(full, 0.45f);
+                UiStyle.Dim(full, 0.45f);
                 if (bigStyle == null) bigStyle = new GUIStyle(Ui.Title) { fontSize = 40 };
                 Ui.Shadowed(new Rect(0, Ui.H / 2f - 80, Ui.W, 60), "Вы без сознания…", bigStyle, new Color(1f, 0.85f, 0.85f));
             }

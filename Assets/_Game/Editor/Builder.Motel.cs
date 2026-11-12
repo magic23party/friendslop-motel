@@ -141,9 +141,14 @@ namespace Friendslop.EditorTools
                     Prim(PrimitiveType.Cylinder, "Handle", tr, new Vector3(0, -0.05f, 0), new Vector3(0.05f, 0.38f, 0.05f), Mat("ItemWood", new Color(0.6f, 0.42f, 0.22f)));
                     Prim(PrimitiveType.Cylinder, "Grip", tr, new Vector3(0, -0.30f, 0), new Vector3(0.058f, 0.13f, 0.058f), red, false);
                     Prim(PrimitiveType.Sphere, "Knob", tr, new Vector3(0, -0.435f, 0), new Vector3(0.07f, 0.045f, 0.07f), red, false);
-                    Prim(PrimitiveType.Cube, "Head", tr, new Vector3(0, 0.36f, 0), new Vector3(0.28f, 0.14f, 0.14f), Mat("ItemIron", new Color(0.20f, 0.21f, 0.25f)));
+                    // P3: головка и боёк — тёмный металл (раньше торцы были светло-серыми и от лампы выгорали в кремово-белый, как пластик)
+                    var iron = Mat("ItemIron", new Color(0.12f, 0.13f, 0.16f));
+                    iron.SetFloat("_Metallic", 0.55f); iron.SetFloat("_Smoothness", 0.4f);
+                    Prim(PrimitiveType.Cube, "Head", tr, new Vector3(0, 0.36f, 0), new Vector3(0.28f, 0.14f, 0.14f), iron);
+                    var ironFace = Mat("ItemIronFace", new Color(0.10f, 0.105f, 0.13f));
+                    ironFace.SetFloat("_Metallic", 0.7f); ironFace.SetFloat("_Smoothness", 0.5f);
                     foreach (float sx in new[] { -0.155f, 0.155f })
-                        Prim(PrimitiveType.Cube, "Face", tr, new Vector3(sx, 0.36f, 0), new Vector3(0.04f, 0.16f, 0.16f), Mat("ItemIronFace", new Color(0.46f, 0.48f, 0.54f)), false);
+                        Prim(PrimitiveType.Cube, "Face", tr, new Vector3(sx, 0.36f, 0), new Vector3(0.04f, 0.16f, 0.16f), ironFace, false);
                     Prim(PrimitiveType.Cube, "Band", tr, new Vector3(0, 0.36f, 0), new Vector3(0.05f, 0.15f, 0.15f), red, false);
                     break;
                 }

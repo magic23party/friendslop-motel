@@ -6,7 +6,8 @@ namespace Friendslop
     {
         public string text;
         public bool urgent;       // красным и выше в списке
-        public TaskLine(string text, bool urgent = false) { this.text = text; this.urgent = urgent; }
+        public ItemType[] icons;  // (P3) что нужно: цветные значки предметов справа от текста (null — без значков)
+        public TaskLine(string text, bool urgent = false, ItemType[] icons = null) { this.text = text; this.urgent = urgent; this.icons = icons; }
     }
 
     /// <summary>
@@ -40,7 +41,7 @@ namespace Friendslop
             foreach (var r in Room.All)
             {
                 if (r.Locked || r.State != RoomState.NeedsService) continue;
-                into.Add(new TaskLine($"Номер {r.index}: {r.NeedsText()}"));
+                into.Add(new TaskLine($"Номер {r.index}", false, r.NeedIcons()));
             }
         }
 

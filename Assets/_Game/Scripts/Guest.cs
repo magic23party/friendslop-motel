@@ -81,6 +81,7 @@ namespace Friendslop
         const float FlashTime = 0.3f, PunchTime = 0.25f;
         Transform vis;
         Humanoid humanoid;
+        StunStars stars;
         float lie, flashT, punchT, phase;
         int pendingLook;
         /// <summary>Скриншоты (P2): гость замёрз на месте (не ходит, не уходит).</summary>
@@ -112,14 +113,14 @@ namespace Friendslop
                 if (s == GuestState.WaitForm || s == GuestState.WaitKey) { inN++; inUrg |= soon; }
                 else if (s == GuestState.WaitCheckOut && !g.Marked.Value) { outN++; outUrg |= soon; }
             }
-            if (inN > 0) into.Add(new TaskLine("Гость у стойки (заселение)" + (inN > 1 ? " ×" + inN : ""), inUrg));
-            if (outN > 0) into.Add(new TaskLine("Гость у стойки (выезд)" + (outN > 1 ? " ×" + outN : ""), outUrg));
+            if (inN > 0) into.Add(new TaskLine("Гость у стойки (заселение)" + (inN > 1 ? " ×" + inN : ""), inUrg, new[] { ItemType.Form, ItemType.Key }));
+            if (outN > 0) into.Add(new TaskLine("Гость у стойки (выезд)" + (outN > 1 ? " ×" + outN : ""), outUrg, new[] { ItemType.Key }));
             if (BrawlCount() > 0) into.Add(new TaskLine("Драка в коридоре!", true));
             foreach (var w in WorldItem.All)
             {
                 if (w == null || !w.IsSpawned) continue;
                 var it = w.Item.Value;
-                if (it.type == ItemType.Key) into.Add(new TaskLine("Ключ " + it.arg + " на полу"));
+                if (it.type == ItemType.Key) into.Add(new TaskLine("Ключ " + it.arg + " на полу", false, new[] { ItemType.Key }));
             }
         }
 
@@ -153,10 +154,21 @@ namespace Friendslop
             Debug.Log($"[GUEST] look changed to {now} (server={IsServer})");
         }
 
+        /// <summary>Звуки по смене состояния (на всех машинах): звонок на ресепшене, падение, тревога драки.</summary>
+        void OnStateChanged(GuestState prev, GuestState now)
+        {
+            var map = MotelMap.Instance;
+            if ((now == GuestState.WaitForm || now == GuestState.WaitCheckOut) && map != null && map.receptionDesk != null)
+                Sfx.Play3D(Snd.Bell, map.receptionDesk.position + Vector3.up * 1.1f, 0.9f);
+            else if (now == GuestState.Down) Sfx.Play3D(Snd.Thud, transform.position + Vector3.up * 0.4f, 1f);
+            else if (now == GuestState.Brawl) Sfx.Play3D(Snd.Alarm, transform.position + Vector3.up * 2f, 0.8f);
+        }
+
         public override void OnNetworkSpawn()
         {
             All.Add(this);
             Look.OnValueChanged += OnLookChanged;
+            State.OnValueChanged += OnStateChanged;
             if (IsServer && Look.Value == 0) Look.Value = pendingLook != 0 ? pendingLook : Random.Range(1, int.MaxValue);
             if (humanoid != null) humanoid.ApplyLook(Look.Value);
             Debug.Log($"[GUEST] look seed={Look.Value} server={IsServer}");
@@ -180,6 +192,7 @@ namespace Friendslop
         public override void OnNetworkDespawn()
         {
             Look.OnValueChanged -= OnLookChanged;
+            State.OnValueChanged -= OnStateChanged;
             All.Remove(this);
             if (IsServer) GameState.ServerRestarted -= ServerDespawn;
         }
@@ -639,6 +652,9 @@ namespace Friendslop
                 humanoid.punch = Mathf.Sin(punchT / PunchTime * Mathf.PI);
                 humanoid.SetFlash(flashT / FlashTime);
             }
+            // «звёздочки» над оглушённым (State — NetworkVariable, видно всем)
+            if (stars == null && s == GuestState.Down) stars = StunStars.Attach(transform);
+            if (stars != null) stars.Tick(s == GuestState.Down, lie, dt);
         }
 
         /// <summary>Скриншоты (P2): сервер ставит замороженного гостя с видом по сиду. flag: "" | "down" | "brawl".</summary>

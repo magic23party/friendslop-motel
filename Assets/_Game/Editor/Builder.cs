@@ -37,7 +37,8 @@ namespace Friendslop.EditorTools
             BuildGuestPrefab(cfg);                       // C4: сетевой префаб гостя
             var list = BuildNetworkPrefabsList(player, db.worldItemPrefab);
             var net = BuildNetPrefab(cfg, player, list);
-            BuildMenuScene(cfg, net);
+            BuildFxAssets(cfg);                          // P3: материалы эффектов (искры, всплывашки)
+            BuildMenuScene(cfg, net, db);
             BuildMotelScene(cfg, db);
             EditorBuildSettings.scenes = new[]
             {
@@ -101,8 +102,18 @@ namespace Friendslop.EditorTools
             }
             m.color = color;
             if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 0.1f);
+            m.EnableKeyword("_EMISSION");        // P3: подсветка под прицелом и эффекты красят emission через MaterialPropertyBlock
             EditorUtility.SetDirty(m);
             return m;
+        }
+
+        /// <summary>Материалы эффектов (P3): ссылки кладём в GameConfig, чтобы шейдеры и материалы попали в билд.</summary>
+        static void BuildFxAssets(GameConfig cfg)
+        {
+            var chip = MatE("FxChip", Color.white, Color.black, 0f);
+            cfg.fxChipMat = chip;
+            cfg.fxLabelMat = LabelMaterial();
+            EditorUtility.SetDirty(cfg);
         }
 
         static GameObject Prim(PrimitiveType t, string name, Transform parent, Vector3 pos, Vector3 scale, Material mat, bool keepCollider = true)
@@ -215,14 +226,22 @@ namespace Friendslop.EditorTools
 
         // ---------------------------------------------------------------- сцены
 
-        static void BuildMenuScene(GameConfig cfg, GameObject netPrefab)
+        static void BuildMenuScene(GameConfig cfg, GameObject netPrefab, ItemDb db)
         {
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            BuildLightingAndPost();                      // свет и post-processing как в мотеле
+
+            // фон меню: тот же мотель (оболочка, лобби, склад, коридор, декор), но без скриптов и сетевых компонентов
+            BuildShell();
+            BuildMotelLayout(cfg, db);
+            BuildDecor();
+            StripGameplayScripts();
+
             var camGo = new GameObject("MenuCamera");
+            camGo.transform.position = new Vector3(-9f, 2.0f, -41f);
             var cam = camGo.AddComponent<Camera>();
-            cam.clearFlags = CameraClearFlags.SolidColor;
-            cam.backgroundColor = new Color(0.10f, 0.11f, 0.15f);
-            cam.cullingMask = 0;
+            cam.nearClipPlane = 0.05f; cam.farClipPlane = 200f;
+            SetupCamera(cam);
             camGo.AddComponent<AudioListener>();
             camGo.tag = "MainCamera";
 
@@ -232,11 +251,18 @@ namespace Friendslop.EditorTools
             EditorSceneManager.SaveScene(scene, MenuPath);
         }
 
-        static void BuildMotelScene(GameConfig cfg, ItemDb db)
+        /// <summary>Убрать из текущей сцены компоненты игры и Netcode (остаётся чистая геометрия, свет и TextMesh).</summary>
+        static void StripGameplayScripts()
         {
-            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            BuildLightingAndPost();                      // P1: лунный свет, ambient, туман, Volume (tonemapping/bloom/vignette)
+            var all = Object.FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include);
+            foreach (var mb in all)
+                if (mb != null && !(mb is NetworkObject) && (mb.GetType().Namespace == "Friendslop" || mb is NetworkBehaviour)) Object.DestroyImmediate(mb);
+            foreach (var no in Object.FindObjectsByType<NetworkObject>(FindObjectsInactive.Include)) Object.DestroyImmediate(no);
+        }
 
+        /// <summary>Пол, стены, столбы-ориентиры (общая оболочка сцен Motel и Menu).</summary>
+        static void BuildShell()
+        {
             var floor = Mat("Floor", Palette.Floor);
             var wall = Mat("Wall", Palette.Wall);
             Prim(PrimitiveType.Cube, "Floor", null, new Vector3(0, -0.1f, 0), new Vector3(40, 0.2f, 40), floor);
@@ -250,6 +276,14 @@ namespace Friendslop.EditorTools
             for (int i = 0; i < 4; i++)
                 Prim(PrimitiveType.Cube, "Pillar_" + i, null, new Vector3(i % 2 == 0 ? -17f : 17f, 1.5f, i < 2 ? 2.5f : -17f),
                     new Vector3(1.2f, 3f, 1.2f), Mat("Pillar" + i, cols[i]));
+        }
+
+        static void BuildMotelScene(GameConfig cfg, ItemDb db)
+        {
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            BuildLightingAndPost();                      // P1: лунный свет, ambient, туман, Volume (tonemapping/bloom/vignette)
+
+            BuildShell();
 
             // точки спавна: 2 ряда по 4, лицом к +Z
             var sps = new GameObject("SpawnPoints").transform;

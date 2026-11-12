@@ -31,6 +31,13 @@ namespace Friendslop
     ///   moon интенсивность режим сила       эксперименты со светом: режим 0 нет / 1 hard / 2 soft теней
     ///   handpose Тип fp|tp px py pz ex ey ez  положение предмета в руке (подбор без пересборки; ставит и вид fp/tp)
     ///   toggle ИмяОбъекта 0|1               включить/выключить объект сцены по имени
+    ///   cam x y z lx ly lz [fov]            поставить камеру (без снимка) — для uishot
+    ///   uishot имя [задержка_с]             снимок С интерфейсом (IMGUI): камера рисует прямо на экран, PNG берётся с экрана
+    ///   uishotfp имя [задержка_с]           то же камерой игрока (вид от 1-го лица, viewmodel, подсказка под прицелом)
+    ///   hl none|item|guest                  подсветка и подсказка у владельца: ближайший предмет / гость (как при наведении прицела)
+    ///   fx hit x y z | fx money дельта x y z   эффекты: искры удара / всплывашка денег со звуком
+    ///   taxdue 0|1                          выставить/снять налоговый счёт (HUD, тревога)
+    ///   gameover                            «Мотель закрыт» (экран Game Over)
     /// <c>-shotwait N</c> — подождать N с смены до первого кадра (чтобы пришли гости).
     /// </summary>
     public class ShotRunner : MonoBehaviour
@@ -99,6 +106,7 @@ namespace Friendslop
             pl.cam.enabled = false;
 
             var go = new GameObject("ShotCamera");
+            go.tag = "MainCamera";
             cam = go.AddComponent<Camera>();
             cam.nearClipPlane = 0.05f; cam.farClipPlane = 200f;
             cam.clearFlags = CameraClearFlags.SolidColor;
@@ -293,6 +301,50 @@ namespace Friendslop
                     yield return null;
                     break;
                 }
+                case "cam":
+                    cam.transform.position = new Vector3(F(s, 1), F(s, 2), F(s, 3));
+                    cam.transform.rotation = Quaternion.LookRotation(new Vector3(F(s, 4), F(s, 5), F(s, 6)) - cam.transform.position, Vector3.up);
+                    cam.fieldOfView = F(s, 7, 62f);
+                    yield return null;
+                    break;
+                case "uishot":
+                    yield return SnapUi(s[1], F(s, 2, 0.8f), false);
+                    break;
+                case "uishotfp":
+                    yield return SnapUi(s[1], F(s, 2, 0.8f), true);
+                    break;
+                case "hl":
+                {
+                    var h = PlayerHands.Local;
+                    if (h == null) break;
+                    h.ShotAim = null;
+                    if (s.Length > 1 && s[1] == "item") h.ShotAim = WorldItem.Nearest(pl.transform.position);
+                    else if (s.Length > 1 && s[1] == "guest" && Guest.All.Count > 0) h.ShotAim = Guest.All[0];
+                    yield return null;
+                    break;
+                }
+                case "fx":
+                {
+                    if (s.Length > 1 && s[1] == "hit")
+                    {
+                        var p = new Vector3(F(s, 2), F(s, 3), F(s, 4));
+                        Fx.Hit(p); Sfx.Play3D(Snd.Hit, p);
+                    }
+                    else if (s.Length > 1 && s[1] == "money") Fx.Money((int)F(s, 2), new Vector3(F(s, 3), F(s, 4), F(s, 5)));
+                    yield return null;
+                    break;
+                }
+                case "taxdue":
+                {
+                    var gs = GameState.Instance;
+                    if (gs != null) { gs.TaxDue.Value = F(s, 1) > 0f; gs.TaxTime.Value = gs.Now + 100.0; }
+                    yield return null;
+                    break;
+                }
+                case "gameover":
+                    if (GameState.Instance != null) GameState.Instance.GameOver();
+                    yield return null;
+                    break;
                 case "toggle":
                 {
                     var o = GameObject.Find(s[1]);
@@ -322,6 +374,26 @@ namespace Friendslop
             yield return Capture(name);
             pc.enabled = false;
             pc.targetTexture = null;
+        }
+
+        /// <summary>Снимок с IMGUI: рисуем камерой прямо на экран и забираем кадр с экрана (RenderTexture интерфейс не содержит).</summary>
+        IEnumerator SnapUi(string name, float delay, bool fp)
+        {
+            var hud = FindAnyObjectByType<MotelHud>();
+            if (hud != null) hud.enabled = true;
+            var c = fp ? pl.cam : cam;
+            if (fp) { cam.enabled = false; pl.cam.enabled = true; }
+            c.targetTexture = null;
+            yield return new WaitForSeconds(delay);
+            yield return new WaitForEndOfFrame();
+            var t = ScreenCapture.CaptureScreenshotAsTexture();
+            File.WriteAllBytes(Path.Combine(outDir, name + ".png"), t.EncodeToPNG());
+            Destroy(t);
+            passN++;
+            Debug.Log($"[SHOT] {name} ok (ui {Screen.width}x{Screen.height})");
+            if (fp) { pl.cam.enabled = false; cam.enabled = true; }
+            else cam.targetTexture = rt;
+            if (hud != null) hud.enabled = false;
         }
 
         IEnumerator Capture(string name)
@@ -356,7 +428,7 @@ namespace Friendslop
                     list.Add(new[] { "shot", p.name, p.pos.x.ToString(CI), p.pos.y.ToString(CI), p.pos.z.ToString(CI), p.look.x.ToString(CI), p.look.y.ToString(CI), p.look.z.ToString(CI), p.fov.ToString(CI) });
                 return list;
             }
-            var known = new HashSet<string> { "shot", "shotfp", "wait", "spawner", "guest", "clearguests", "held", "view", "player", "knock", "swing", "item", "clearitems", "moon", "toggle", "handpose", "slab", "room", "handaim", "guestlive" };
+            var known = new HashSet<string> { "shot", "shotfp", "wait", "spawner", "guest", "clearguests", "held", "view", "player", "knock", "swing", "item", "clearitems", "moon", "toggle", "handpose", "slab", "room", "handaim", "guestlive", "cam", "uishot", "uishotfp", "hl", "fx", "taxdue", "gameover" };
             foreach (var raw in File.ReadAllLines(file))
             {
                 var line = raw.Trim();

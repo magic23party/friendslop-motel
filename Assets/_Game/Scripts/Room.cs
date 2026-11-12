@@ -96,6 +96,18 @@ namespace Friendslop
             return sb.ToString();
         }
 
+        /// <summary>Что надо занести, значками (P3): расходники и швабра для пятна.</summary>
+        public ItemType[] NeedIcons()
+        {
+            int n = HasStain ? 1 : 0;
+            for (int i = 0; i < SupplyTypes.Length; i++) if (Needs(i)) n++;
+            var a = new ItemType[n];
+            int k = 0;
+            for (int i = 0; i < SupplyTypes.Length; i++) if (Needs(i)) a[k++] = SupplyTypes[i];
+            if (HasStain) a[k] = ItemType.Mop;
+            return a;
+        }
+
         // ------------------------------------------------------------ сервер: API для гостей (C4) и тестов
 
         GameConfig Cfg => GameState.Instance != null ? GameState.Instance.config : null;

@@ -30,11 +30,12 @@ namespace Friendslop
         Color pantsC = new Color(0.16f, 0.2f, 0.32f), hairC = new Color(0.2f, 0.12f, 0.07f), hatC = Color.white;
         Transform root;
         Vector3 lastPos;
-        float speed, phase, idle, flash = -1f;
+        float speed, phase, idle, flash = -1f, hl;
         bool inited;
         static MaterialPropertyBlock mpb;
         static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
         static readonly Color FlashColor = new Color(1f, 0.15f, 0.1f);
+        static readonly Color HlColor = new Color(1f, 0.92f, 0.55f);
 
         // ------------------------------------------------------------ цвета и вид
 
@@ -131,11 +132,21 @@ namespace Friendslop
 
         void Repaint(float f)
         {
-            Paint(shirtR, Color.Lerp(ShirtColor, FlashColor, f));
-            Paint(skinR, Color.Lerp(SkinColor, FlashColor, f));
-            Paint(pantsR, pantsC);
-            Paint(hairR, hairC);
-            Paint(hatR, hatC);
+            Paint(shirtR, Hl(Color.Lerp(ShirtColor, FlashColor, f)));
+            Paint(skinR, Hl(Color.Lerp(SkinColor, FlashColor, f)));
+            Paint(pantsR, Hl(pantsC));
+            Paint(hairR, Hl(hairC));
+            Paint(hatR, Hl(hatC));
+        }
+
+        Color Hl(Color c) => hl > 0f ? Color.Lerp(c, HlColor, 0.38f * hl) : c;
+
+        /// <summary>Подсветка под прицелом (P3): 0..1 — доля тёплого оттенка на всей модели.</summary>
+        public void SetHighlight(float v)
+        {
+            if (Mathf.Approximately(v, hl)) return;
+            hl = v;
+            Repaint(Mathf.Max(0f, flash));
         }
 
         public static void Paint(Renderer[] rs, Color c)
