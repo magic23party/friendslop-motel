@@ -480,30 +480,14 @@ namespace Friendslop
             DropKey();
         }
 
-        /// <summary>Заселён = уже получил номер: идёт в номер / живёт / идёт на выезд / ждёт выезда / дерётся / неплательщик при выходе.</summary>
-        bool IsSettled(GuestState s)
-        {
-            switch (s)
-            {
-                case GuestState.ToRoom: case GuestState.Living: case GuestState.ToDesk:
-                case GuestState.WaitCheckOut: case GuestState.Brawl:
-                    return true;
-                case GuestState.Leaving:
-                    return carriedMoney > 0;      // выехавший неплательщик (отказался платить, держит деньги)
-                default:
-                    return false;                 // Arriving / WaitForm / Signing / WaitKey / Down
-            }
-        }
-
         void GoDown()
         {
             var prev = State.Value;
             EndAggro();
             if (agent != null && agent.enabled && agent.isOnNavMesh) agent.ResetPath();
             ReleaseRoomAndKey(prev);
-            // Деньги роняет только заселённый гость (есть номер / неплательщик с деньгами). Незаселённый (у стойки, ещё не получил ключ) — ничего.
-            if (IsSettled(prev)) { if (carriedMoney <= 0) carriedMoney = config.guestPays; DropMoney(); }
-            else carriedMoney = 0;
+            // Деньги роняет только тот, кто уже выехал из номера и несёт оплату (идёт/ждёт на выезде, неплательщик). До выезда — ничего.
+            DropMoney();
             Enter(GuestState.Down, Gs.Now + config.npcDownTime / TimeScale);
             Debug.Log($"[FIGHT] guest #{ticket} is down (was {prev})");
         }
