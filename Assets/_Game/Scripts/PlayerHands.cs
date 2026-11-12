@@ -13,6 +13,7 @@ namespace Friendslop
     public class PlayerHands : NetworkBehaviour, IInteractable
     {
         public static PlayerHands Local;
+        public static readonly System.Collections.Generic.List<PlayerHands> All = new System.Collections.Generic.List<PlayerHands>();
         /// <summary>Сервер: ЛКМ (down/up) любого игрока, цель может быть null (удар в воздух). Для кувалды/швабры.</summary>
         public static event Action<PlayerHands, HeldItem, IInteractable, bool> ServerUsed;
 
@@ -47,6 +48,7 @@ namespace Friendslop
         public override void OnNetworkSpawn()
         {
             pc = GetComponent<PlayerController>();
+            All.Add(this);
             if (IsOwner) Local = this;
             Held.OnValueChanged += OnHeldChanged;
             RefreshVisual();
@@ -55,6 +57,7 @@ namespace Friendslop
         public override void OnNetworkDespawn()
         {
             Held.OnValueChanged -= OnHeldChanged;
+            All.Remove(this);
             if (Local == this) Local = null;
             // игрок вышел с предметом в руках (ключ!) — оставить его на полу
             if (IsServer && !Held.Value.IsNone && NetworkManager != null && !NetworkManager.ShutdownInProgress)
@@ -82,10 +85,18 @@ namespace Friendslop
 
         // ------------------------------------------------------------ сервер: API для целей
 
-        /// <summary>Сервер: положить предмет в руки (если пусто).</summary>
+        /// <summary>Сервер: положить предмет в руки (если пусто). Деньги (Money) уходят в кассу и руки не занимают.</summary>
         public bool ServerTake(HeldItem item)
         {
-            if (!IsServer || !Held.Value.IsNone || item.IsNone) return false;
+            if (!IsServer || item.IsNone) return false;
+            if (item.type == ItemType.Money)         // деньги сразу в кассу, руки не занимают
+            {
+                var gs = GameState.Instance;
+                if (gs == null) return false;
+                gs.ServerAddMoney(item.arg);
+                return true;
+            }
+            if (!Held.Value.IsNone) return false;
             Held.Value = item;
             return true;
         }

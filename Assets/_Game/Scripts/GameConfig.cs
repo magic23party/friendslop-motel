@@ -31,6 +31,7 @@ namespace Friendslop
         public int needsMin = 1, needsMax = 3;
         [Range(0f, 1f)] public float stainChance = 0.4f;
         public float mopTime = 3f;
+        public bool roomsStartDirty = true;   // C3-тест: номера стартуют NeedsService. C4 ставит false (старт Ready)
 
         [Header("Драки и кувалда")]
         public int npcHp = 3;

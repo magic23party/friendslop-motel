@@ -77,13 +77,15 @@ namespace Friendslop
 
         public string Hint(HeldItem held)
         {
+            if (Item.Value.type == ItemType.Money) return Interact.E("собрать деньги (" + Item.Value.arg + " $)");   // руки не нужны
             if (!held.IsNone) return Interact.Busy;
             return Interact.E("поднять: " + Items.Name(Item.Value));
         }
 
         public void ServerInteract(PlayerHands who, HeldItem held)
         {
-            if (!IsSpawned || !held.IsNone) return;
+            if (!IsSpawned) return;
+            if (Item.Value.type != ItemType.Money && !held.IsNone) return;     // деньги берутся и с полными руками
             if (!who.ServerTake(Item.Value)) return;
             NetworkObject.Despawn();
         }

@@ -1,0 +1,53 @@
+using System.Collections.Generic;
+
+namespace Friendslop
+{
+    public struct TaskLine
+    {
+        public string text;
+        public bool urgent;       // красным и выше в списке
+        public TaskLine(string text, bool urgent = false) { this.text = text; this.urgent = urgent; }
+    }
+
+    /// <summary>
+    /// Общий список задач отеля (справа в HUD). Встроенные: неоплаченный счёт и номера, требующие обслуживания.
+    /// Остальные системы (гость у стойки — C4, драка — C5) добавляют одной строкой:
+    ///   TaskBoard.Register(into => { if (cond) into.Add(new TaskLine("Гость у стойки")); });
+    /// (сохраните делегат в поле и снимите в OnNetworkDespawn: TaskBoard.Unregister(тот же делегат)).
+    /// Провайдеры вызываются на каждой машине: читайте только NetworkVariable / синхронное состояние.
+    /// </summary>
+    public static class TaskBoard
+    {
+        public delegate void Provider(List<TaskLine> into);
+
+        static readonly List<Provider> providers = new List<Provider>();
+
+        public static void Register(Provider p) { if (p != null && !providers.Contains(p)) providers.Add(p); }
+        public static void Unregister(Provider p) { providers.Remove(p); }
+
+        /// <summary>Собрать актуальный список: счёт, провайдеры, номера. Список очищается. Вне смены — пусто.</summary>
+        public static void Collect(List<TaskLine> into)
+        {
+            into.Clear();
+            var gs = GameState.Instance;
+            if (gs == null || gs.Phase.Value != GamePhase.Playing) return;
+
+            if (gs.TaxDue.Value)
+                into.Add(new TaskLine($"Счёт {gs.config.taxAmount} $ не оплачен — терминал налогов ({Fmt(gs.TaxLeft)})", true));
+
+            foreach (var p in providers) p(into);
+
+            foreach (var r in Room.All)
+            {
+                if (r.Locked || r.State != RoomState.NeedsService) continue;
+                into.Add(new TaskLine($"Номер {r.index}: {r.NeedsText()}"));
+            }
+        }
+
+        public static string Fmt(float seconds)
+        {
+            int s = UnityEngine.Mathf.CeilToInt(seconds);
+            return (s / 60) + ":" + (s % 60).ToString("00");
+        }
+    }
+}

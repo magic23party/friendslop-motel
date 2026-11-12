@@ -26,6 +26,9 @@ namespace Friendslop
 
         public bool Has(int room) => room >= 1 && room <= Slots && (Mask.Value & (1 << (room - 1))) != 0;
 
+        /// <summary>Сервер: все ключи обратно на доску (перезапуск смены).</summary>
+        public void ServerReset() { if (IsServer) Mask.Value = (1 << Slots) - 1; }
+
         /// <summary>Сервер: снять ключ с доски.</summary>
         public bool ServerTake(int room)
         {

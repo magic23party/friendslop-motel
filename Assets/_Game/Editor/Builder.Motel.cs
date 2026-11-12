@@ -204,20 +204,22 @@ namespace Friendslop.EditorTools
                 Label(sh.transform, s.Item2, new Vector3(-0.1f, 2.7f, 0), Vector3.left, 0.3f, white);
             }
 
-            // --- налоговый терминал (запад лобби); логику вешает C3
+            // --- налоговый терминал (запад лобби)
             var term = Empty("TaxTerminal", root, new Vector3(-19.3f, 0, -10f));
             Prim(PrimitiveType.Cube, "Body", term.transform, new Vector3(0, 0.65f, 0), new Vector3(0.7f, 1.3f, 1.0f), Mat("Terminal", new Color(0.2f, 0.22f, 0.3f)));
             Prim(PrimitiveType.Cube, "Screen", term.transform, new Vector3(0.36f, 0.95f, 0), new Vector3(0.04f, 0.5f, 0.7f), Mat("TerminalScreen", new Color(0.3f, 0.8f, 0.9f)), false);
             Label(term.transform, "НАЛОГИ", new Vector3(0.1f, 1.9f, 0), Vector3.right, 0.35f, white);
             map.taxTerminal = term.transform;
+            var tax = Interactable<TaxTerminal>(term);
+            tax.screen = Label(term.transform, "", new Vector3(0.40f, 0.95f, 0), Vector3.right, 0.11f, new Color(0.1f, 0.25f, 0.3f), "ScreenText");
 
             // --- коридор и номера: 1..10 на север (z 14..20), 11..20 на юг (z 5..11), коридор z 11..14
             var wallMat = Mat("Wall", new Color(0.75f, 0.72f, 0.66f));
             for (int k = 0; k < 10; k++)
             {
                 float cx = -16.2f + 3.6f * k;
-                BuildRoom(root, 1 + k, new Vector3(cx, 0, 14f), 0f);
-                BuildRoom(root, 11 + k, new Vector3(cx, 0, 11f), 180f);
+                BuildRoom(root, 1 + k, new Vector3(cx, 0, 14f), 0f, db);
+                BuildRoom(root, 11 + k, new Vector3(cx, 0, 11f), 180f, db);
             }
             // стенка между лобби и южными номерами не нужна: задние стены номеров (z=5) её заменяют
 
@@ -252,7 +254,7 @@ namespace Friendslop.EditorTools
             }
         }
 
-        static void BuildRoom(Transform root, int index, Vector3 pos, float yRot)
+        static void BuildRoom(Transform root, int index, Vector3 pos, float yRot, ItemDb db)
         {
             const float D = 6f, H = 3f, T = 0.1f;
             var wall = Mat("Wall", new Color(0.75f, 0.72f, 0.66f));
@@ -261,6 +263,7 @@ namespace Friendslop.EditorTools
             go.transform.position = pos;
             go.transform.rotation = Quaternion.Euler(0, yRot, 0);
             var t = go.transform;
+            go.AddComponent<NetworkObject>();                      // C3: состояние номера синхронизируется
             var room = go.AddComponent<Room>();
             room.index = index;
 
@@ -273,6 +276,8 @@ namespace Friendslop.EditorTools
             Prim(PrimitiveType.Cube, "FloorTile", t, new Vector3(0, 0.01f, D / 2), new Vector3(3.4f, 0.02f, D - 0.2f), Mat("RoomFloor", new Color(0.62f, 0.56f, 0.5f)), false);
 
             room.bed = Prim(PrimitiveType.Cube, "Bed", t, new Vector3(-0.85f, 0.3f, D - 1.1f), new Vector3(1.3f, 0.6f, 2.0f), Mat("Bed", new Color(0.35f, 0.4f, 0.65f))).transform;
+            var bedSpot = Interactable<RoomSpot>(room.bed.gameObject);
+            bedSpot.room = room; bedSpot.kind = SpotKind.Bed;
             Prim(PrimitiveType.Cube, "Pillow", t, new Vector3(-0.85f, 0.66f, D - 0.4f), new Vector3(0.9f, 0.12f, 0.4f), Mat("Pillow", new Color(0.95f, 0.95f, 0.95f)), false);
             Prim(PrimitiveType.Cube, "Table", t, new Vector3(1.35f, 0.4f, 4.6f), new Vector3(0.6f, 0.8f, 1.8f), Mat("Table", new Color(0.5f, 0.36f, 0.22f)));
 
@@ -280,18 +285,32 @@ namespace Friendslop.EditorTools
             var supplyColors = new[] { new Color(0.35f, 0.65f, 0.95f), new Color(0.95f, 0.55f, 0.75f), new Color(0.98f, 0.95f, 0.7f) };
             var supplyNames = new[] { "Towel", "Soap", "Napkins" };
             room.supplyPoints = new Transform[3];
+            room.supplyStock = new GameObject[3];
             for (int i = 0; i < 3; i++)
             {
                 var p = Prim(PrimitiveType.Cube, "Supply_" + supplyNames[i], t, new Vector3(1.35f, 0.82f, 3.95f + 0.65f * i), new Vector3(0.4f, 0.04f, 0.4f), Mat("Supply" + supplyNames[i], supplyColors[i]));
                 room.supplyPoints[i] = p.transform;
+                var spot = Interactable<RoomSpot>(p);
+                spot.room = room; spot.kind = SpotKind.Supply; spot.supplyIndex = i;
+                // сам расходник на точке (виден, пока его не надо заносить)
+                var stock = UnityEngine.Object.Instantiate(db.visuals[(int)Room.SupplyTypes[i]], t);
+                stock.name = "Stock_" + supplyNames[i];
+                stock.transform.localPosition = new Vector3(1.35f, 0.86f, 3.95f + 0.65f * i);
+                foreach (var c in stock.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(c);
+                room.supplyStock[i] = stock;
             }
 
             // пятно: точка + скрытый визуал
             var sp = Empty("StainPoint", t, new Vector3(0.2f, 0.02f, 2.6f));
             var stain = Prim(PrimitiveType.Cylinder, "Stain", sp.transform, Vector3.zero, new Vector3(1.0f, 0.01f, 1.0f), Mat("Stain", new Color(0.25f, 0.16f, 0.08f)), false);
+            var stainCol = stain.AddComponent<BoxCollider>();      // плоский, чтобы в пятно можно было прицелиться шваброй
+            stainCol.size = new Vector3(1f, 2f, 1f);
             stain.SetActive(false);
             room.stainPoint = sp.transform;
             room.stainVisual = stain;
+            var stainSpot = Interactable<RoomSpot>(sp);            // на StainPoint (всегда активен), коллайдер — на скрытом пятне
+            stainSpot.room = room; stainSpot.kind = SpotKind.Stain;
+            room.stainSpot = stainSpot;
 
             room.door = Empty("Door", t, Vector3.zero).transform;
             room.outside = Empty("Outside", t, new Vector3(0, 0, -1.0f)).transform;
