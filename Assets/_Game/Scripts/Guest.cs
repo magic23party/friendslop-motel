@@ -35,6 +35,9 @@ namespace Friendslop
         /// <summary>Самотест -guesttest: все интервалы короче в 10 раз, гости бегают втрое быстрее.</summary>
         public static readonly bool Fast = NetBootstrap.Arg("-guesttest") || NetBootstrap.Arg("-fighttest");
         public static float TimeScale => Fast ? 10f : 1f;
+
+        /// <summary>Счётчики для лога [STATS] (сервер): пришло / заселено / выехало и заплатило / ушло из мотеля.</summary>
+        public static int StatSpawned, StatSettled, StatPaid, StatLeft;
         const float WalkBoost = 3f;
         static int ticketCounter;
 
@@ -306,6 +309,7 @@ namespace Friendslop
                     {
                         Enter(GuestState.Living);
                         stayEnd = now + StayTime() / TimeScale;
+                        StatSettled++;
                         Debug.Log($"[GUEST] #{ticket} settled in room {RoomNo.Value}");
                     }
                     break;
@@ -348,6 +352,7 @@ namespace Friendslop
                     if ((transform.position - map.guestExit.position).sqrMagnitude < 0.8f * 0.8f
                         || Reached() || Time.time - leavingSince > 60f / (Fast ? WalkBoost : 1f))
                     {
+                        StatLeft++;
                         Debug.Log($"[GUEST] #{ticket} left the motel");
                         ServerDespawn();
                     }
@@ -475,13 +480,30 @@ namespace Friendslop
             DropKey();
         }
 
+        /// <summary>Заселён = уже получил номер: идёт в номер / живёт / идёт на выезд / ждёт выезда / дерётся / неплательщик при выходе.</summary>
+        bool IsSettled(GuestState s)
+        {
+            switch (s)
+            {
+                case GuestState.ToRoom: case GuestState.Living: case GuestState.ToDesk:
+                case GuestState.WaitCheckOut: case GuestState.Brawl:
+                    return true;
+                case GuestState.Leaving:
+                    return carriedMoney > 0;      // выехавший неплательщик (отказался платить, держит деньги)
+                default:
+                    return false;                 // Arriving / WaitForm / Signing / WaitKey / Down
+            }
+        }
+
         void GoDown()
         {
             var prev = State.Value;
             EndAggro();
             if (agent != null && agent.enabled && agent.isOnNavMesh) agent.ResetPath();
             ReleaseRoomAndKey(prev);
-            DropMoney();                      // должен был заплатить — деньги остаются на полу
+            // Деньги роняет только заселённый гость (есть номер / неплательщик с деньгами). Незаселённый (у стойки, ещё не получил ключ) — ничего.
+            if (IsSettled(prev)) { if (carriedMoney <= 0) carriedMoney = config.guestPays; DropMoney(); }
+            else carriedMoney = 0;
             Enter(GuestState.Down, Gs.Now + config.npcDownTime / TimeScale);
             Debug.Log($"[FIGHT] guest #{ticket} is down (was {prev})");
         }
@@ -688,6 +710,7 @@ namespace Friendslop
                     int pay = carriedMoney;
                     keyRoom = 0; carriedMoney = 0;
                     if (pay > 0) who.ServerTake(new HeldItem(ItemType.Money, pay));     // деньги сразу в кассу
+                    StatPaid++;
                     Debug.Log($"[GUEST] #{ticket} checked out, paid {pay} $");
                     StartLeaving();
                     break;

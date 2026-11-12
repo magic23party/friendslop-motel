@@ -16,7 +16,7 @@ namespace Friendslop
         public GameConfig config;
         public GameObject guestPrefab;
 
-        float nextAt;
+        float nextAt, nextStats;
         bool wasPlaying;
         bool testAttached;
 
@@ -38,6 +38,11 @@ namespace Friendslop
 
             if (gs.Phase.Value != GamePhase.Playing) { wasPlaying = false; return; }
             if (!wasPlaying) { wasPlaying = true; nextAt = Time.time + config.firstGuestDelay / Guest.TimeScale; }
+            if (Time.time >= nextStats)
+            {
+                nextStats = Time.time + 60f;
+                Debug.Log($"[STATS] guests spawned={Guest.StatSpawned} settled={Guest.StatSettled} paid={Guest.StatPaid} left={Guest.StatLeft} now={Guest.All.Count} money={gs.Money.Value}");
+            }
             if (Paused || Time.time < nextAt) return;
 
             var map = MotelMap.Instance;
@@ -64,6 +69,7 @@ namespace Friendslop
             var go = Instantiate(guestPrefab, map.guestSpawn.position, map.guestSpawn.rotation);
             var g = go.GetComponent<Guest>();
             g.ServerInit(nonPayer ?? Random.value < config.nonPayerChance);
+            Guest.StatSpawned++;
             go.GetComponent<NetworkObject>().Spawn();
             return g;
         }
