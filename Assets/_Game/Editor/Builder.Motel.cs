@@ -20,6 +20,7 @@ namespace Friendslop.EditorTools
         {
             // C2: дальность взаимодействия по карточке — 2.5 м (старый ассет мог хранить 3)
             if (Mathf.Approximately(cfg.interactDistance, 3f)) { cfg.interactDistance = 2.5f; EditorUtility.SetDirty(cfg); }
+            EditorUtility.SetDirty(cfg);              // C4: дописать в ассет новые поля GameConfig (roomsStartDirty=false и др.)
         }
 
         // ---------------------------------------------------------------- предметы

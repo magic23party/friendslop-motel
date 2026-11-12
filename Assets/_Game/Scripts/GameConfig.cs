@@ -26,12 +26,15 @@ namespace Friendslop
         public float stayMinBig = 20f, stayMaxBig = 40f;
         public float checkOutWait = 30f;
         [Range(0f, 1f)] public float nonPayerChance = 0.2f;
+        public float refuseDelay = 2f;           // неплательщик у стойки: через сколько отказывается платить
+        public float firstGuestDelay = 5f;       // первый гость после начала смены
+        public float guestSpeed = 4f;            // м/с
 
         [Header("Обслуживание номера")]
         public int needsMin = 1, needsMax = 3;
         [Range(0f, 1f)] public float stainChance = 0.4f;
         public float mopTime = 3f;
-        public bool roomsStartDirty = true;   // C3-тест: номера стартуют NeedsService. C4 ставит false (старт Ready)
+        public bool roomsStartDirty = false;  // C3-тест: true = номера стартуют NeedsService. С C4 — false (старт Ready)
 
         [Header("Драки и кувалда")]
         public int npcHp = 3;

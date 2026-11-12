@@ -29,10 +29,14 @@ MonoBehaviour:
   stayMaxBig: 40
   checkOutWait: 30
   nonPayerChance: 0.2
+  refuseDelay: 2
+  firstGuestDelay: 5
+  guestSpeed: 4
   needsMin: 1
   needsMax: 3
   stainChance: 0.4
   mopTime: 3
+  roomsStartDirty: 0
   npcHp: 3
   npcDownTime: 5
   hitsToKnockPlayer: 5

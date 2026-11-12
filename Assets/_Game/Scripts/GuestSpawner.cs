@@ -1,0 +1,66 @@
+using Unity.Netcode;
+using UnityEngine;
+
+namespace Friendslop
+{
+    /// <summary>
+    /// Спавнер гостей (in-scene, не сетевой; работает только на сервере/хосте).
+    /// Интервал из GameConfig: ≤ smallTeamMax игроков — 15±10 с, больше — 8±5 с. Не спавнит, пока очередь у стойки полна.
+    /// С флагом -guesttest стартует на паузе: гостей создаёт GuestSelfTest.
+    /// </summary>
+    public class GuestSpawner : MonoBehaviour
+    {
+        public static GuestSpawner Instance;
+        public static bool Paused = NetBootstrap.Arg("-guesttest");
+
+        public GameConfig config;
+        public GameObject guestPrefab;
+
+        float nextAt;
+        bool wasPlaying;
+        bool testAttached;
+
+        void Awake() { Instance = this; }
+        void OnDestroy() { if (Instance == this) Instance = null; }
+
+        void Update()
+        {
+            var nm = NetworkManager.Singleton;
+            var gs = GameState.Instance;
+            if (nm == null || !nm.IsServer || gs == null || !gs.IsSpawned) return;
+
+            if (Guest.Fast && !testAttached) { testAttached = true; gameObject.AddComponent<GuestSelfTest>(); }
+
+            if (gs.Phase.Value != GamePhase.Playing) { wasPlaying = false; return; }
+            if (!wasPlaying) { wasPlaying = true; nextAt = Time.time + config.firstGuestDelay / Guest.TimeScale; }
+            if (Paused || Time.time < nextAt) return;
+
+            var map = MotelMap.Instance;
+            if (map == null || map.queuePoints == null || Guest.QueueCount() >= map.queuePoints.Length) { nextAt = Time.time + 1f; return; }
+
+            ServerSpawn(null);
+            nextAt = Time.time + NextInterval(gs);
+        }
+
+        float NextInterval(GameState gs)
+        {
+            bool big = gs.PlayerCount.Value > config.smallTeamMax;
+            float b = big ? config.spawnBigBase : config.spawnSmallBase;
+            float j = big ? config.spawnBigJitter : config.spawnSmallJitter;
+            return Mathf.Max(1f, b + Random.Range(-j, j)) / Guest.TimeScale;
+        }
+
+        /// <summary>Сервер: создать гостя у входа. nonPayer=null — по шансу из GameConfig.</summary>
+        public Guest ServerSpawn(bool? nonPayer = null)
+        {
+            var nm = NetworkManager.Singleton;
+            var map = MotelMap.Instance;
+            if (nm == null || !nm.IsServer || map == null || guestPrefab == null) return null;
+            var go = Instantiate(guestPrefab, map.guestSpawn.position, map.guestSpawn.rotation);
+            var g = go.GetComponent<Guest>();
+            g.ServerInit(nonPayer ?? Random.value < config.nonPayerChance);
+            go.GetComponent<NetworkObject>().Spawn();
+            return g;
+        }
+    }
+}

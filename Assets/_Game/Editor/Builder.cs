@@ -34,6 +34,7 @@ namespace Friendslop.EditorTools
             Directory.CreateDirectory(SceneDir);
             var player = BuildPlayerPrefab(cfg);
             var db = BuildItems();                       // C2: визуалы предметов + сетевой префаб предмета на полу
+            BuildGuestPrefab(cfg);                       // C4: сетевой префаб гостя
             var list = BuildNetworkPrefabsList(player, db.worldItemPrefab);
             var net = BuildNetPrefab(cfg, player, list);
             BuildMenuScene(cfg, net);
@@ -195,6 +196,7 @@ namespace Friendslop.EditorTools
             foreach (var p in new List<NetworkPrefab>(list.PrefabList)) list.Remove(p);
             list.Add(new NetworkPrefab { Prefab = player });
             list.Add(new NetworkPrefab { Prefab = worldItem });   // сюда же дописывают свои сетевые префабы следующие карточки
+            if (guestPrefabBuilt != null) list.Add(new NetworkPrefab { Prefab = guestPrefabBuilt });
             EditorUtility.SetDirty(list);
             return list;
         }
@@ -284,6 +286,8 @@ namespace Friendslop.EditorTools
             hud.config = cfg;
 
             BuildMotelLayout(cfg, db);                   // C2: лобби, склад, доска ключей, коридор с номерами
+            BuildGuestSystems(cfg);                      // C4: спавнер гостей
+            BakeNavMesh();                               // C4: NavMeshSurface (после всей геометрии)
 
             var fb = new GameObject("FallbackCamera");
             fb.transform.position = new Vector3(0, 6f, -14f);
