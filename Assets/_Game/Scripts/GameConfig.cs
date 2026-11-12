@@ -51,6 +51,9 @@ namespace Friendslop
 
         [Header("Игрок / взаимодействие")]
         public float moveSpeed = 5f;
+        public float runMultiplier = 1.6f;
+        public float mouseSensitivity = 0.12f;
+        public float gravity = -20f;
         public float interactDistance = 3f;
         public float throwForce = 6f;
         public float hitCooldown = 0.6f;
