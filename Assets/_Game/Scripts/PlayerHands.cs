@@ -37,17 +37,22 @@ namespace Friendslop
         public IInteractable UseTarget { get; private set; }
 
         PlayerController pc;
+        PlayerCombat combat;
         GameObject visual;
         bool sentDown;
         IInteractable sentTarget;
         int testStage;
         float testTimer;
 
+        /// <summary>Игрок без сознания (C5): ввод и RPC рук заблокированы.</summary>
+        public bool Downed => combat != null && combat.IsDown.Value;
+
         public Vector3 Eye => transform.position + Vector3.up * EyeHeight;
 
         public override void OnNetworkSpawn()
         {
             pc = GetComponent<PlayerController>();
+            combat = GetComponent<PlayerCombat>();
             All.Add(this);
             if (IsOwner) Local = this;
             Held.OnValueChanged += OnHeldChanged;
@@ -135,7 +140,7 @@ namespace Friendslop
             if (TestMode && pc.Placed) SelfTestStep();       // в batchmode нет фокуса/ввода
             var kb = Keyboard.current;
             var ms = Mouse.current;
-            if (!pc.Placed || pc.MenuOpen || !Application.isFocused || kb == null || ms == null || pc.cam == null)
+            if (!pc.Placed || pc.MenuOpen || Downed || !Application.isFocused || kb == null || ms == null || pc.cam == null)
             {
                 Target = null; HintText = "";
                 SendUse(false, null);
@@ -197,6 +202,7 @@ namespace Friendslop
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
         void InteractRpc(NetworkObjectReference netRef, int sceneId)
         {
+            if (Downed) return;
             var t = Interact.Resolve(netRef, sceneId);
             if (!InReach(t)) return;
             t.ServerInteract(this, Held.Value);
@@ -206,7 +212,7 @@ namespace Friendslop
         void UseRpc(bool down, NetworkObjectReference netRef, int sceneId)
         {
             var held = Held.Value;
-            if (held.IsNone) { UseDown = false; UseTarget = null; return; }
+            if (held.IsNone || Downed) { UseDown = false; UseTarget = null; return; }
             var t = down ? Interact.Resolve(netRef, sceneId) : null;
             if (t != null && !InReach(t)) t = null;
             UseDown = down;
@@ -218,6 +224,7 @@ namespace Friendslop
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
         void DropRpc(Vector3 origin, Vector3 dir)
         {
+            if (Downed) return;
             var h = Held.Value;
             if (h.IsNone) return;
             dir = dir.sqrMagnitude < 0.01f ? transform.forward : dir.normalized;

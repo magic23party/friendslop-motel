@@ -224,6 +224,8 @@ namespace Friendslop.EditorTools
             }
             // стенка между лобби и южными номерами не нужна: задние стены номеров (z=5) её заменяют
 
+            map.corridorPoint = Empty("CorridorMid", root, new Vector3(0, 0, 12.5f)).transform;     // C5: место драк
+
             // подключаем MotelMap к KeyBoard
             map.keyBoard = root.GetComponentInChildren<KeyBoard>();
         }

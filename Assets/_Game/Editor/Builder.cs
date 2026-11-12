@@ -179,6 +179,7 @@ namespace Friendslop.EditorTools
             pc.tintRenderer = body.GetComponent<Renderer>();
             pc.bodyCollider = body.GetComponent<Collider>();
 
+            root.AddComponent<PlayerCombat>();           // C5: удар кувалдой, отключка
             Items.SetLayer(root, Items.PlayerLayer);
             var prefab = PrefabUtility.SaveAsPrefabAsset(root, PlayerPath);
             Object.DestroyImmediate(root);

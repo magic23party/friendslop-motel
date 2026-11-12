@@ -45,6 +45,13 @@ MonoBehaviour:
   brawlInterval: 90
   brawlDrainAmount: 5
   brawlDrainInterval: 5
+  brawlJitter: 20
+  brawlSpread: 10
+  npcAttackInterval: 1
+  npcAttackRange: 1.5
+  npcChaseSpeedMul: 1.5
+  npcAggroTimeout: 20
+  playerHitForget: 10
   startMoney: 150
   guestPays: 50
   taxInterval: 480

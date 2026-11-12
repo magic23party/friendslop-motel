@@ -42,7 +42,8 @@ namespace Friendslop
 
         CharacterController cc;
         NetworkTransform nt;
-        float yaw, pitch, vy, logTimer;
+        PlayerCombat combat;
+        float yaw, pitch, vy, logTimer, downBlend;
         static GUIStyle nameStyle;
         static readonly bool NetLog = NetBootstrap.Arg("-netlog");
 
@@ -57,6 +58,7 @@ namespace Friendslop
         {
             cc = GetComponent<CharacterController>();
             nt = GetComponent<NetworkTransform>();
+            combat = GetComponent<PlayerCombat>();
             All.Add(this);
             cc.enabled = false;
             if (tintRenderer != null) tintRenderer.material.color = Palette[(int)(OwnerClientId % (ulong)Palette.Length)];
@@ -100,9 +102,10 @@ namespace Friendslop
 
             var kb = Keyboard.current;
             var ms = Mouse.current;
-            bool input = Application.isFocused && kb != null && ms != null;
+            bool down = combat != null && combat.IsDown.Value;       // C5: без сознания — ввод заблокирован
+            bool input = Application.isFocused && kb != null && ms != null && !down;
 
-            if (input && kb.escapeKey.wasPressedThisFrame) SetMenu(!MenuOpen);
+            if (Application.isFocused && kb != null && kb.escapeKey.wasPressedThisFrame) SetMenu(!MenuOpen);
             if (!MenuOpen && Application.isFocused && Cursor.lockState != CursorLockMode.Locked)
             { Cursor.lockState = CursorLockMode.Locked; Cursor.visible = false; }
 
@@ -114,7 +117,6 @@ namespace Friendslop
                 yaw += d.x;
                 pitch = Mathf.Clamp(pitch - d.y, -85f, 85f);
                 transform.rotation = Quaternion.Euler(0f, yaw, 0f);
-                camPivot.localRotation = Quaternion.Euler(pitch, 0f, 0f);
 
                 float x = (kb.dKey.isPressed ? 1f : 0f) - (kb.aKey.isPressed ? 1f : 0f);
                 float z = (kb.wKey.isPressed ? 1f : 0f) - (kb.sKey.isPressed ? 1f : 0f);
@@ -127,6 +129,11 @@ namespace Friendslop
             if (input && !MenuOpen && cc.isGrounded && kb.spaceKey.wasPressedThisFrame) vy = config.jumpForce;
             vy += config.gravity * Time.deltaTime;
             cc.Move((wish * speed + Vector3.up * vy) * Time.deltaTime);
+
+            // камера: стоя — на уровне глаз, без сознания — у пола и набок
+            downBlend = Mathf.MoveTowards(downBlend, down ? 1f : 0f, Time.deltaTime * 4f);
+            camPivot.localPosition = new Vector3(0f, Mathf.Lerp(1.62f, 0.25f, downBlend), 0f);
+            camPivot.localRotation = Quaternion.Slerp(Quaternion.Euler(pitch, 0f, 0f), Quaternion.Euler(-8f, 0f, 70f), downBlend);
         }
 
         void TryPlace()

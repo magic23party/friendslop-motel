@@ -51,7 +51,7 @@ namespace Friendslop
                     Ui.Shadowed(new Rect(cx - 250, Ui.H / 2f + 22, 500, 30), hands.HintText, Ui.Center, Color.white);
                 var held = hands.Held.Value;
                 if (!held.IsNone)
-                    Ui.Shadowed(new Rect(cx - 250, Ui.H - 64, 500, 30), "В руках: " + Items.Name(held) + "  ·  G — бросить", Ui.Center, Color.yellow);
+                    Ui.Shadowed(new Rect(cx - 250, Ui.H - 64, 500, 30), "В руках: " + Items.Name(held) + (held.type == ItemType.Sledgehammer ? "  ·  ЛКМ — удар" : "") + "  ·  G — бросить", Ui.Center, Color.yellow);
             }
 
             if (gs != null)

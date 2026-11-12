@@ -16,7 +16,8 @@ namespace Friendslop
         ToDesk,         // идёт выписываться
         WaitCheckOut,   // у стойки, ждёт выписки
         Leaving,        // идёт к выходу (деспавн на выходе)
-        Down            // (C5) лежит после ударов
+        Down,           // (C5) лежит после ударов (npcDownTime), потом уходит
+        Brawl           // (C5) дерётся с другим гостем в коридоре, пока игроки не уложат обоих
     }
 
     /// <summary>
@@ -24,14 +25,15 @@ namespace Friendslop
     /// Жизненный цикл: вход → очередь → бланк → подпись → ключ → номер → проживание → выписка → выход.
     /// Состояние и дедлайн (ServerTime) — NetworkVariable: клиенты рисуют статус над головой и подсказки без трафика.
     /// Всё решает сервер; игрок взаимодействует через IInteractable (E с предметом в руках).
-    /// API для C5 (бой): Hp, ServerHit(attacker), ServerFlee, ServerDropMoney, IsLiving, CarriedMoney, Marked.
+    /// Бой (C5): ServerHit(attacker) — Hp--, агрессия (догоняет и бьёт ударившего), 0 Hp → Down (роняет деньги/ключ), потом уходит;
+    /// Brawl — драка двух гостей (BrawlDirector). Визуал (лежит/подпрыгивает/выпад/драка) — на всех машинах по State и FxRpc.
     /// </summary>
     public class Guest : NetworkBehaviour, IInteractable
     {
         public static readonly List<Guest> All = new List<Guest>();
 
         /// <summary>Самотест -guesttest: все интервалы короче в 10 раз, гости бегают втрое быстрее.</summary>
-        public static readonly bool Fast = NetBootstrap.Arg("-guesttest");
+        public static readonly bool Fast = NetBootstrap.Arg("-guesttest") || NetBootstrap.Arg("-fighttest");
         public static float TimeScale => Fast ? 10f : 1f;
         const float WalkBoost = 3f;
         static int ticketCounter;
@@ -51,6 +53,11 @@ namespace Friendslop
         public NetworkVariable<int> Hp = new NetworkVariable<int>(3);
 
         // сервер
+        PlayerCombat aggroTarget;   // кого бьёт (ударил гостя)
+        double aggroUntil;
+        float nextAttack, nextChase, baseSpeed;
+        Guest brawlPartner;
+        bool brawlArrived;
         bool nonPayer;
         int keyRoom;            // номер ключа, который гость держит (0 — нет)
         int carriedMoney;       // сколько денег несёт (неплательщик уносит их с собой)
@@ -65,7 +72,17 @@ namespace Friendslop
         string lastText = "";
         float statusBaseSize;
 
+        // визуал (все машины)
+        const float FlashTime = 0.3f, PunchTime = 0.25f;
+        Transform vis;
+        Renderer bodyRend;
+        Color baseCol = Color.white;
+        float lie, flashT, punchT, phase;
+        bool tinted;
+
         public bool IsLiving => State.Value == GuestState.Living;
+        /// <summary>Сервер: можно втянуть в драку (живёт в номере, не отвлечён на агрессию, не побит).</summary>
+        public bool CanBrawl => IsServer && IsSpawned && State.Value == GuestState.Living && aggroTarget == null && Hp.Value > 0;
         public int CarriedMoney => carriedMoney;
         public bool IsNonPayer => nonPayer;
         static GameState Gs => GameState.Instance;
@@ -91,6 +108,7 @@ namespace Friendslop
             }
             if (inN > 0) into.Add(new TaskLine("Гость у стойки (заселение)" + (inN > 1 ? " ×" + inN : ""), inUrg));
             if (outN > 0) into.Add(new TaskLine("Гость у стойки (выезд)" + (outN > 1 ? " ×" + outN : ""), outUrg));
+            if (BrawlCount() > 0) into.Add(new TaskLine("Драка в коридоре!", true));
             foreach (var w in WorldItem.All)
             {
                 if (w == null || !w.IsSpawned) continue;
@@ -111,6 +129,20 @@ namespace Friendslop
         void Awake()
         {
             if (status != null) statusBaseSize = status.characterSize;
+            // тело и глаза — под общий узел Visual: его одним поворотом укладываем на пол, подбрасываем при ударе
+            var v = new GameObject("Visual").transform;
+            v.SetParent(transform, false);
+            var kids = new List<Transform>();
+            foreach (Transform c in transform) if (c != v && (status == null || c != status.transform)) kids.Add(c);
+            foreach (var c in kids) c.SetParent(v, false);
+            vis = v;
+            var body = v.Find("Body");
+            if (body != null)
+            {
+                bodyRend = body.GetComponent<Renderer>();
+                if (bodyRend != null && bodyRend.sharedMaterial != null) baseCol = bodyRend.sharedMaterial.color;
+            }
+            phase = Random.value * 6.28f;
         }
 
         public override void OnNetworkSpawn()
@@ -122,7 +154,8 @@ namespace Friendslop
                 GameState.ServerRestarted += ServerDespawn;
                 if (agent != null)
                 {
-                    agent.speed = (config != null ? config.guestSpeed : 4f) * (Fast ? WalkBoost : 1f);
+                    baseSpeed = (config != null ? config.guestSpeed : 4f) * (Fast ? WalkBoost : 1f);
+                agent.speed = baseSpeed;
                     agent.enabled = true;
                     if (agent.isOnNavMesh) agent.Warp(transform.position);
                     else Debug.LogError("[GUEST] spawned off NavMesh at " + transform.position);
@@ -238,6 +271,8 @@ namespace Friendslop
             }
             if (agent.enabled && agent.isOnNavMesh && agent.isStopped && agent.hasPath) agent.isStopped = false;
 
+            if (aggroTarget != null && TickAggro(gs.Now)) return;      // ударенный гость гонится за обидчиком, остальное ждёт
+
             double now = gs.Now;
             var s = State.Value;
 
@@ -295,6 +330,18 @@ namespace Friendslop
                         DropKey(); DropMoney();
                         StartLeaving();
                     }
+                    break;
+
+                case GuestState.Down:
+                    if (now >= Until.Value)
+                    {
+                        Debug.Log($"[FIGHT] guest #{ticket} gets up and leaves");
+                        StartLeaving();
+                    }
+                    break;
+
+                case GuestState.Brawl:
+                    TickBrawl();
                     break;
 
                 case GuestState.Leaving:
@@ -382,27 +429,197 @@ namespace Friendslop
 
         static Vector3 RandomToss() => new Vector3(Random.Range(-1f, 1f), 1.5f, Random.Range(-1f, 1f));
 
-        // ------------------------------------------------------------ API для C5 (бой)
+        // ------------------------------------------------------------ бой (C5)
 
-        /// <summary>C5: удар по гостю. Заглушка C4 — ничего не делает. Здесь: Hp--, агрессия, Down (npcDownTime), выпадение денег.</summary>
+        public static int BrawlCount()
+        {
+            int n = 0;
+            foreach (var g in All) if (g != null && g.IsSpawned && g.State.Value == GuestState.Brawl) n++;
+            return n;
+        }
+
+        /// <summary>Сервер: удар кувалдой. Hp--; пока жив — гонится за ударившим; 0 Hp — Down (роняет деньги и ключ).</summary>
         public virtual void ServerHit(PlayerHands attacker)
         {
-            if (!IsServer) return;
-            Debug.Log($"[GUEST] #{ticket} hit by {(attacker != null ? attacker.name : "?")} (C5 stub, hp={Hp.Value})");
+            if (!IsServer || !IsSpawned) return;
+            var s = State.Value;
+            if (s == GuestState.Down || Hp.Value <= 0) return;           // лежачего и уже побитого не добиваем
+            Hp.Value--;
+            FxRpc(0);
+            Debug.Log($"[FIGHT] guest #{ticket} hit by {(attacker != null ? attacker.name : "?")}, hp={Hp.Value} ({s})");
+            if (Hp.Value <= 0) { GoDown(); return; }
+            var who = attacker != null ? attacker.GetComponent<PlayerCombat>() : null;
+            if (s != GuestState.Brawl && who != null && !who.IsDown.Value) StartAggro(who);      // дерущиеся друг с другом на игрока не отвлекаются
         }
 
         /// <summary>C5: гость сбегает (игрок потерял сознание / гость побеждён): ключ роняет, номер освобождает, идёт к выходу.</summary>
         public void ServerFlee(bool dropMoney)
         {
-            if (!IsServer || State.Value == GuestState.Leaving) return;
-            if (State.Value == GuestState.ToRoom || State.Value == GuestState.Living)
+            if (!IsServer) return;
+            var s = State.Value;
+            if (s == GuestState.Leaving || s == GuestState.Down) return;
+            EndAggro();
+            ReleaseRoomAndKey(s);
+            if (dropMoney) DropMoney();
+            StartLeaving();
+        }
+
+        /// <summary>Гость уходит насовсем: ключ на пол, а если он занимал номер — номер требует уборки.</summary>
+        void ReleaseRoomAndKey(GuestState from)
+        {
+            if (from == GuestState.ToRoom || from == GuestState.Living || from == GuestState.Brawl)
             {
                 var room = Room.Get(RoomNo.Value);
                 if (room != null) room.ServerSetNeedsService();
             }
             DropKey();
-            if (dropMoney) DropMoney();
-            StartLeaving();
+        }
+
+        void GoDown()
+        {
+            var prev = State.Value;
+            EndAggro();
+            if (agent != null && agent.enabled && agent.isOnNavMesh) agent.ResetPath();
+            ReleaseRoomAndKey(prev);
+            DropMoney();                      // должен был заплатить — деньги остаются на полу
+            Enter(GuestState.Down, Gs.Now + config.npcDownTime / TimeScale);
+            Debug.Log($"[FIGHT] guest #{ticket} is down (was {prev})");
+        }
+
+        // --- агрессия: догнать ударившего и бить раз в npcAttackInterval
+
+        void StartAggro(PlayerCombat target)
+        {
+            if (agent == null || !agent.enabled) return;
+            bool fresh = aggroTarget == null;
+            aggroTarget = target;
+            aggroUntil = Gs.Now + config.npcAggroTimeout / TimeScale;
+            if (fresh)
+            {
+                nextAttack = Time.time + config.npcAttackInterval * 0.5f / TimeScale;
+                nextChase = 0f;
+                agent.speed = baseSpeed * config.npcChaseSpeedMul;
+                Debug.Log($"[FIGHT] guest #{ticket} is angry at {target.name}");
+            }
+        }
+
+        void EndAggro()
+        {
+            if (aggroTarget == null) return;
+            aggroTarget = null;
+            if (agent != null) agent.speed = baseSpeed;
+        }
+
+        /// <summary>true — гость занят погоней/дракой с игроком в этот тик.</summary>
+        bool TickAggro(double now)
+        {
+            var t = aggroTarget;
+            if (t == null || !t.IsSpawned || t.IsDown.Value || now >= aggroUntil)
+            {
+                EndAggro();
+                ResumeAfterAggro();
+                return false;
+            }
+            var to = t.transform.position - transform.position; to.y = 0f;
+            if (to.magnitude > config.npcAttackRange)
+            {
+                if (Time.time >= nextChase) { nextChase = Time.time + 0.2f; SetDest(t.transform.position); }
+                return true;
+            }
+            if (agent.enabled && agent.isOnNavMesh && agent.hasPath) agent.ResetPath();
+            if (to.sqrMagnitude > 0.01f)
+                transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(to), 720f * Time.deltaTime);
+            if (Time.time >= nextAttack)
+            {
+                nextAttack = Time.time + config.npcAttackInterval / TimeScale;
+                FxRpc(1);
+                if (t.ServerGuestHit())        // игрок потерял сознание — гость сбегает, не заплатив
+                {
+                    EndAggro();
+                    if (State.Value == GuestState.Leaving) ResumeAfterAggro();
+                    else ServerFlee(false);
+                    Debug.Log($"[FIGHT] guest #{ticket} knocked {t.name} out and flees");
+                    return true;
+                }
+            }
+            return true;
+        }
+
+        /// <summary>После агрессии вернуть гостя к тому, что он делал: идти в номер / к выходу / в очередь.</summary>
+        void ResumeAfterAggro()
+        {
+            switch (State.Value)
+            {
+                case GuestState.Leaving:
+                    SetDest(MotelMap.Instance.guestExit.position);
+                    break;
+                case GuestState.ToRoom:
+                case GuestState.Living:
+                {
+                    var room = Room.Get(RoomNo.Value);
+                    if (room != null) SetDest(Vector3.Lerp(room.inside.position, room.bed.position, 0.35f));
+                    break;
+                }
+                default:
+                    lastQueueIdx = -1;          // очередь: ServerTick назначит место заново
+                    break;
+            }
+        }
+
+        // --- драка двух гостей (запускает BrawlDirector)
+
+        /// <summary>Сервер: гость выходит из номера и идёт драться в коридор. Драка идёт, пока гость не будет уложен (Down).</summary>
+        public void ServerStartBrawl(Vector3 spot, Guest partner)
+        {
+            if (!IsServer || !IsSpawned) return;
+            EndAggro();
+            brawlPartner = partner;
+            brawlArrived = false;
+            Enter(GuestState.Brawl);
+            SetDest(spot);
+            Debug.Log($"[FIGHT] guest #{ticket} goes to brawl at {spot}");
+        }
+
+        void TickBrawl()
+        {
+            if (!brawlArrived) { if (Reached()) brawlArrived = true; return; }
+            if (brawlPartner == null || !brawlPartner.IsSpawned) return;
+            var d = brawlPartner.transform.position - transform.position; d.y = 0f;
+            if (d.sqrMagnitude > 0.01f)
+                transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(d), 360f * Time.deltaTime);
+        }
+
+        // --- визуальные эффекты (RPC всем): 0 — получил удар, 1 — сам ударил
+
+        [Rpc(SendTo.Everyone)]
+        void FxRpc(byte kind)
+        {
+            if (kind == 0) flashT = FlashTime; else punchT = PunchTime;
+        }
+
+        void UpdateVisual()
+        {
+            if (vis == null) return;
+            float dt = Time.deltaTime;
+            var s = State.Value;
+            lie = Mathf.MoveTowards(lie, s == GuestState.Down ? 1f : 0f, dt * 6f);
+            flashT = Mathf.Max(0f, flashT - dt);
+            punchT = Mathf.Max(0f, punchT - dt);
+            float hop = flashT / FlashTime * 0.18f;
+            float lunge = Mathf.Sin(punchT / PunchTime * Mathf.PI) * 0.35f;
+            float wob = 0f, lean = 0f;
+            if (s == GuestState.Brawl)
+            {
+                wob = Mathf.Abs(Mathf.Sin(Time.time * 12f + phase)) * 0.12f;
+                lean = Mathf.Sin(Time.time * 9f + phase) * 10f;
+            }
+            vis.localPosition = new Vector3(0f, 0.4f * lie + hop + wob, lunge);
+            vis.localRotation = Quaternion.Euler(-90f * lie, 0f, lean);
+            if (bodyRend != null && (flashT > 0f || tinted))
+            {
+                tinted = flashT > 0f;
+                bodyRend.material.color = Color.Lerp(baseCol, new Color(1f, 0.15f, 0.1f), flashT / FlashTime);
+            }
         }
 
         // ------------------------------------------------------------ взаимодействие (IInteractable)
@@ -481,7 +698,9 @@ namespace Friendslop
 
         void LateUpdate()
         {
-            if (!IsSpawned || status == null) return;
+            if (!IsSpawned) return;
+            UpdateVisual();
+            if (status == null) return;
             string txt = "";
             Color col = Color.white;
             bool marked = Marked.Value;
@@ -496,6 +715,7 @@ namespace Friendslop
                     case GuestState.WaitCheckOut: txt = "Выезд · " + LeftSeconds() + " с"; break;
                     case GuestState.Signing: txt = "Подписывает…"; col = new Color(0.7f, 0.9f, 1f); break;
                     case GuestState.Down: txt = "Без сознания"; col = new Color(0.8f, 0.8f, 0.8f); break;
+                    case GuestState.Brawl: txt = "Драка!"; col = new Color(1f, 0.35f, 0.25f); break;
                 }
                 if ((s == GuestState.WaitForm || s == GuestState.WaitKey || s == GuestState.WaitCheckOut) && LeftSeconds() <= 8.0 / TimeScale)
                     col = new Color(1f, 0.85f, 0.3f);

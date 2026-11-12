@@ -58,6 +58,7 @@ namespace Friendslop.EditorTools
             var sp = new GameObject("GuestSpawner").AddComponent<GuestSpawner>();
             sp.config = cfg;
             sp.guestPrefab = guestPrefabBuilt;
+            new GameObject("BrawlDirector").AddComponent<BrawlDirector>().config = cfg;     // C5: драки в коридоре
         }
 
         /// <summary>

@@ -45,6 +45,13 @@ namespace Friendslop
         public float brawlInterval = 90f;
         public float brawlDrainAmount = 5f;
         public float brawlDrainInterval = 5f;
+        public float brawlJitter = 20f;          // разброс интервала между драками, с
+        public float brawlSpread = 10f;          // драка в коридоре на случайном x в [-spread; +spread]
+        public float npcAttackInterval = 1f;     // ударенный гость бьёт ударившего раз в N с
+        public float npcAttackRange = 1.5f;      // дистанция удара гостя, м
+        public float npcChaseSpeedMul = 1.5f;    // ударенный гость бежит быстрее обычного шага
+        public float npcAggroTimeout = 20f;      // через сколько гость остывает и возвращается к делам
+        public float playerHitForget = 10f;      // счётчик ударов по игроку сбрасывается, если не били N с
 
         [Header("Деньги и налоги")]
         public int startMoney = 150;

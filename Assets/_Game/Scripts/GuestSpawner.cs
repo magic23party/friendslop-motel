@@ -11,7 +11,7 @@ namespace Friendslop
     public class GuestSpawner : MonoBehaviour
     {
         public static GuestSpawner Instance;
-        public static bool Paused = NetBootstrap.Arg("-guesttest");
+        public static bool Paused = NetBootstrap.Arg("-guesttest") || NetBootstrap.Arg("-fighttest");
 
         public GameConfig config;
         public GameObject guestPrefab;
@@ -29,7 +29,12 @@ namespace Friendslop
             var gs = GameState.Instance;
             if (nm == null || !nm.IsServer || gs == null || !gs.IsSpawned) return;
 
-            if (Guest.Fast && !testAttached) { testAttached = true; gameObject.AddComponent<GuestSelfTest>(); }
+            if (Guest.Fast && !testAttached)
+            {
+                testAttached = true;
+                if (NetBootstrap.Arg("-guesttest")) gameObject.AddComponent<GuestSelfTest>();
+                if (NetBootstrap.Arg("-fighttest")) gameObject.AddComponent<FightSelfTest>();
+            }
 
             if (gs.Phase.Value != GamePhase.Playing) { wasPlaying = false; return; }
             if (!wasPlaying) { wasPlaying = true; nextAt = Time.time + config.firstGuestDelay / Guest.TimeScale; }
