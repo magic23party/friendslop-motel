@@ -1,0 +1,53 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0fe9c743ec8f3e84ca6cc1aa2cd3cae5, type: 3}
+  m_Name: GameConfig
+  m_EditorClassIdentifier: Assembly-CSharp::Friendslop.GameConfig
+  port: 7777
+  maxPlayers: 8
+  smallTeamMax: 4
+  smallRooms: 10
+  bigRooms: 20
+  spawnSmallBase: 15
+  spawnSmallJitter: 10
+  spawnBigBase: 8
+  spawnBigJitter: 5
+  checkInWait: 30
+  signDuration: 2
+  stayMinSmall: 30
+  stayMaxSmall: 50
+  stayMinBig: 20
+  stayMaxBig: 40
+  checkOutWait: 30
+  nonPayerChance: 0.2
+  needsMin: 1
+  needsMax: 3
+  stainChance: 0.4
+  mopTime: 3
+  npcHp: 3
+  npcDownTime: 5
+  hitsToKnockPlayer: 5
+  playerDownTime: 5
+  colleagueHitDownTime: 1
+  brawlInterval: 90
+  brawlDrainAmount: 5
+  brawlDrainInterval: 5
+  startMoney: 150
+  guestPays: 50
+  taxInterval: 480
+  taxAmount: 100
+  taxDeadline: 180
+  moveSpeed: 5
+  interactDistance: 3
+  throwForce: 6
+  hitCooldown: 0.6
+  hitDistance: 2.2
