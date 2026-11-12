@@ -10,7 +10,7 @@ using UnityEngine.SceneManagement;
 
 namespace Friendslop.EditorTools
 {
-    public static class Builder
+    public static partial class Builder
     {
         const string PrefabDir = "Assets/_Game/Prefabs";
         const string MatDir = "Assets/_Game/Materials";
@@ -33,16 +33,18 @@ namespace Friendslop.EditorTools
             Directory.CreateDirectory(MatDir);
             Directory.CreateDirectory(SceneDir);
             var player = BuildPlayerPrefab(cfg);
-            var list = BuildNetworkPrefabsList(player);
+            var db = BuildItems();                       // C2: визуалы предметов + сетевой префаб предмета на полу
+            var list = BuildNetworkPrefabsList(player, db.worldItemPrefab);
             var net = BuildNetPrefab(cfg, player, list);
             BuildMenuScene(cfg, net);
-            BuildMotelScene(cfg);
+            BuildMotelScene(cfg, db);
             EditorBuildSettings.scenes = new[]
             {
                 new EditorBuildSettingsScene(MenuPath, true),
                 new EditorBuildSettingsScene(MotelPath, true),
             };
 
+            MigrateConfig(cfg);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log("[BUILDALL OK]");
@@ -155,6 +157,18 @@ namespace Friendslop.EditorTools
             var listener = camGo.AddComponent<AudioListener>();
             listener.enabled = false;
 
+            // C2: руки — вид от первого лица (под камерой) и для чужих копий (у корпуса)
+            var handView = new GameObject("HandView").transform;
+            handView.SetParent(pivot, false);
+            handView.localPosition = new Vector3(0.32f, -0.30f, 0.55f);
+            var handWorld = new GameObject("HandWorld").transform;
+            handWorld.SetParent(root.transform, false);
+            handWorld.localPosition = new Vector3(0.35f, 1.15f, 0.45f);
+            var hands = root.AddComponent<PlayerHands>();
+            hands.config = cfg;
+            hands.handView = handView;
+            hands.handWorld = handWorld;
+
             var pc = root.AddComponent<PlayerController>();
             pc.config = cfg;
             pc.camPivot = pivot;
@@ -164,12 +178,13 @@ namespace Friendslop.EditorTools
             pc.tintRenderer = body.GetComponent<Renderer>();
             pc.bodyCollider = body.GetComponent<Collider>();
 
+            Items.SetLayer(root, Items.PlayerLayer);
             var prefab = PrefabUtility.SaveAsPrefabAsset(root, PlayerPath);
             Object.DestroyImmediate(root);
             return prefab;
         }
 
-        static NetworkPrefabsList BuildNetworkPrefabsList(GameObject player)
+        static NetworkPrefabsList BuildNetworkPrefabsList(GameObject player, GameObject worldItem)
         {
             var list = AssetDatabase.LoadAssetAtPath<NetworkPrefabsList>(ListPath);
             if (list == null)
@@ -178,7 +193,8 @@ namespace Friendslop.EditorTools
                 AssetDatabase.CreateAsset(list, ListPath);
             }
             foreach (var p in new List<NetworkPrefab>(list.PrefabList)) list.Remove(p);
-            list.Add(new NetworkPrefab { Prefab = player });   // сюда же дописывают свои сетевые префабы следующие карточки
+            list.Add(new NetworkPrefab { Prefab = player });
+            list.Add(new NetworkPrefab { Prefab = worldItem });   // сюда же дописывают свои сетевые префабы следующие карточки
             EditorUtility.SetDirty(list);
             return list;
         }
@@ -224,7 +240,7 @@ namespace Friendslop.EditorTools
             EditorSceneManager.SaveScene(scene, MenuPath);
         }
 
-        static void BuildMotelScene(GameConfig cfg)
+        static void BuildMotelScene(GameConfig cfg, ItemDb db)
         {
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             RenderSettings.skybox = null;
@@ -247,7 +263,7 @@ namespace Friendslop.EditorTools
             // цветные столбы-ориентиры в углах
             var cols = new[] { Color.red, Color.blue, Color.green, Color.yellow };
             for (int i = 0; i < 4; i++)
-                Prim(PrimitiveType.Cube, "Pillar_" + i, null, new Vector3(i % 2 == 0 ? -17f : 17f, 1.5f, i < 2 ? 17f : -17f),
+                Prim(PrimitiveType.Cube, "Pillar_" + i, null, new Vector3(i % 2 == 0 ? -17f : 17f, 1.5f, i < 2 ? 2.5f : -17f),
                     new Vector3(1.2f, 3f, 1.2f), Mat("Pillar" + i, cols[i]));
 
             // точки спавна: 2 ряда по 4, лицом к +Z
@@ -266,6 +282,8 @@ namespace Friendslop.EditorTools
 
             var hud = new GameObject("MotelHud").AddComponent<MotelHud>();
             hud.config = cfg;
+
+            BuildMotelLayout(cfg, db);                   // C2: лобби, склад, доска ключей, коридор с номерами
 
             var fb = new GameObject("FallbackCamera");
             fb.transform.position = new Vector3(0, 6f, -14f);

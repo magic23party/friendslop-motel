@@ -54,7 +54,10 @@ namespace Friendslop
         public float runMultiplier = 1.6f;
         public float mouseSensitivity = 0.12f;
         public float gravity = -20f;
-        public float interactDistance = 3f;
+        public float interactDistance = 2.5f;
+        public float interactReachSlack = 1.5f;   // запас серверной проверки дистанции (лаг)
+        public float jumpForce = 6.5f;            // начальная вертикальная скорость прыжка (Space)
+        public float throwUp = 1.5f;              // подброс вверх при броске (G)
         public float throwForce = 6f;
         public float hitCooldown = 0.6f;
         public float hitDistance = 2.2f;

@@ -124,6 +124,7 @@ namespace Friendslop
             }
 
             if (cc.isGrounded && vy < 0f) vy = -1f;
+            if (input && !MenuOpen && cc.isGrounded && kb.spaceKey.wasPressedThisFrame) vy = config.jumpForce;
             vy += config.gravity * Time.deltaTime;
             cc.Move((wish * speed + Vector3.up * vy) * Time.deltaTime);
         }

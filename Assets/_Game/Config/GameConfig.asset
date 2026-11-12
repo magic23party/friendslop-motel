@@ -47,7 +47,13 @@ MonoBehaviour:
   taxAmount: 100
   taxDeadline: 180
   moveSpeed: 5
-  interactDistance: 3
+  runMultiplier: 1.6
+  mouseSensitivity: 0.12
+  gravity: -20
+  interactDistance: 2.5
+  interactReachSlack: 1.5
+  jumpForce: 6.5
+  throwUp: 1.5
   throwForce: 6
   hitCooldown: 0.6
   hitDistance: 2.2

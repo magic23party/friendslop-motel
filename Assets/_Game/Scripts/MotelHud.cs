@@ -30,6 +30,16 @@ namespace Friendslop
             if (me != null && me.Placed && !me.MenuOpen)
                 GUI.Label(new Rect(cx - 15, Ui.H / 2f - 15, 30, 30), "+", Ui.Center);
 
+            var hands = PlayerHands.Local;
+            if (me != null && me.Placed && !me.MenuOpen && hands != null)
+            {
+                if (!string.IsNullOrEmpty(hands.HintText))
+                    Ui.Shadowed(new Rect(cx - 250, Ui.H / 2f + 22, 500, 30), hands.HintText, Ui.Center, Color.white);
+                var held = hands.Held.Value;
+                if (!held.IsNone)
+                    Ui.Shadowed(new Rect(cx - 250, Ui.H - 64, 500, 30), "В руках: " + Items.Name(held) + "  ·  G — бросить", Ui.Center, Color.yellow);
+            }
+
             if (gs != null)
             {
                 int max = config != null ? config.maxPlayers : 8;
@@ -54,7 +64,7 @@ namespace Friendslop
             }
 
             if (me != null && me.Placed && !me.MenuOpen)
-                Ui.Shadowed(new Rect(12, Ui.H - 34, 400, 28), "WASD — ходьба · Shift — бег · Esc — меню", Ui.Label, new Color(1, 1, 1, 0.8f));
+                Ui.Shadowed(new Rect(12, Ui.H - 34, 800, 28), "WASD — ходьба · Shift — бег · Пробел — прыжок · E — действие · G — бросить · Esc — меню", Ui.Label, new Color(1, 1, 1, 0.8f));
 
             if (me != null && me.MenuOpen)
             {
