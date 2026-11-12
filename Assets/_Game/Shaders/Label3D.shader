@@ -13,7 +13,7 @@ Shader "Friendslop/Label3D"
         {
             Name "Unlit"
             Tags { "LightMode"="UniversalForward" }
-            Cull Off
+            Cull Back
             ZWrite Off
             ZTest LEqual
             Blend SrcAlpha OneMinusSrcAlpha

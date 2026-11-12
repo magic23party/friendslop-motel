@@ -47,7 +47,7 @@ namespace Friendslop
         public static readonly Color LampWarm = new Color(1.00f, 0.80f, 0.52f);   // лампы внутри
         public static readonly Color Moon = new Color(0.50f, 0.60f, 1.00f);       // холодный лунный
         public static readonly Color Night = new Color(0.07f, 0.11f, 0.25f);     // фон неба
-        public static readonly Color Ambient = new Color(0.27f, 0.28f, 0.37f);
+        public static readonly Color Ambient = new Color(0.33f, 0.33f, 0.43f);
         public static readonly Color Neon = new Color(1.00f, 0.18f, 0.34f);
 
         // цвета предметов на стеллажах (стеллаж читается цветом своего предмета)
@@ -56,5 +56,6 @@ namespace Friendslop
         public static readonly Color Napkins = new Color(0.98f, 0.95f, 0.70f);
         public static readonly Color Mop = new Color(0.35f, 0.72f, 0.35f);
         public static readonly Color Hammer = new Color(0.80f, 0.20f, 0.20f);
+        public static readonly Color Dirt = new Color(0.60f, 0.38f, 0.16f);        // значок «грязь» на табличке номера
     }
 }

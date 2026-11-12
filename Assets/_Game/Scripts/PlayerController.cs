@@ -31,7 +31,7 @@ namespace Friendslop
         public Camera cam;
         public AudioListener listener;
         public Renderer[] bodyRenderers;   // скрываются у владельца (вид от первого лица)
-        public Renderer tintRenderer;      // красится по clientId
+        public Humanoid humanoid;          // модель: униформа по clientId (P2)
         public Collider bodyCollider;      // у владельца выключен (там CharacterController)
 
         public NetworkVariable<FixedString64Bytes> Nick = new NetworkVariable<FixedString64Bytes>(
@@ -61,7 +61,12 @@ namespace Friendslop
             combat = GetComponent<PlayerCombat>();
             All.Add(this);
             cc.enabled = false;
-            if (tintRenderer != null) tintRenderer.material.color = Palette[(int)(OwnerClientId % (ulong)Palette.Length)];
+            if (humanoid != null)
+            {
+                humanoid.ApplyPlayer((int)OwnerClientId, Palette[(int)(OwnerClientId % (ulong)Palette.Length)]);
+                var hh = GetComponent<PlayerHands>();
+                if (hh != null) hh.PaintFpArm(humanoid.ShirtColor, humanoid.SkinColor);
+            }
             cam.enabled = false;
             listener.enabled = false;
 
@@ -134,6 +139,17 @@ namespace Friendslop
             downBlend = Mathf.MoveTowards(downBlend, down ? 1f : 0f, Time.deltaTime * 4f);
             camPivot.localPosition = new Vector3(0f, Mathf.Lerp(1.62f, 0.25f, downBlend), 0f);
             camPivot.localRotation = Quaternion.Slerp(Quaternion.Euler(pitch, 0f, 0f), Quaternion.Euler(-8f, 0f, 70f), downBlend);
+        }
+
+        /// <summary>Скриншоты (P2): поставить игрока в точку и повернуть (yaw/pitch в градусах).</summary>
+        public void ShotPose(Vector3 pos, float yawDeg, float pitchDeg)
+        {
+            cc.enabled = false;
+            yaw = yawDeg; pitch = pitchDeg; vy = 0f;
+            transform.SetPositionAndRotation(pos, Quaternion.Euler(0f, yaw, 0f));
+            if (nt != null && nt.CanCommitToTransform) nt.Teleport(pos, Quaternion.Euler(0f, yaw, 0f), transform.localScale);
+            cc.enabled = true;
+            camPivot.localRotation = Quaternion.Euler(pitch, 0f, 0f);
         }
 
         void TryPlace()

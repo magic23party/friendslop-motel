@@ -63,6 +63,15 @@ namespace Friendslop
             return Name(h.type);
         }
 
+        /// <summary>Визуал предмета с учётом arg (номер на бирке ключа). withColliders=false — для руки.</summary>
+        public static GameObject CreateVisual(HeldItem h, Transform parent, bool withColliders)
+        {
+            var go = CreateVisual(h.type, parent, withColliders);
+            if (go != null && h.type == ItemType.Key)
+                foreach (var tm in go.GetComponentsInChildren<TextMesh>(true)) tm.text = h.arg > 0 ? h.arg.ToString() : "";
+            return go;
+        }
+
         /// <summary>Создаёт визуал предмета под parent. withColliders=false — для руки.</summary>
         public static GameObject CreateVisual(ItemType t, Transform parent, bool withColliders)
         {

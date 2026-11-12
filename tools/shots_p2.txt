@@ -1,0 +1,111 @@
+# P2: окружение (6 пресетов P1) + персонажи, предметы, вид от первого лица
+# запуск: powershell -ExecutionPolicy Bypass -File tools/shots.ps1 -Label p2 -ShotFile tools/shots_p2.txt
+spawner off
+player 12 0 -4 180 0
+shot 1_lobby 14 1.9 1 -3 1.2 -13 72
+shot 2_reception 2.5 1.8 -19 0.5 1.25 -13 68
+shot 3_storage 9 1.9 -3 19 1.0 -12 68
+shot 4_corridor -16.5 1.7 12.5 10 1.5 12.5 66
+shot 5_room -15 1.9 14.4 -16.6 0.6 18.5 78
+shot 6_outside -8 2.2 -40 0 2.4 -20 64
+
+# --- таблички номеров: значки нужного вместо мелкого текста
+room 3 needs 7 stain
+room 4 occupied
+room 5 needs 1
+room 6 needs 2 stain
+room 7 needs 4
+shot 4b_corridor_signs -16.5 1.7 12.5 10 1.5 12.5 66
+shot 4c_sign_3_all -9.0 1.9 11.6 -9.0 2.5 14 62
+shot 4d_signs_4_7 -3.2 1.9 11.4 -3.2 2.4 14 70
+
+# --- гости: 8 разных по сиду
+guest 11 -5.6 0 -3 0
+guest 22 -4.0 0 -3 0
+guest 33 -2.4 0 -3 0
+guest 44 -0.8 0 -3 0
+guest 55 0.8 0 -3 0
+guest 66 2.4 0 -3 0
+guest 77 4.0 0 -3 0
+guest 88 5.6 0 -3 0
+shot guests_lineup 0 1.5 3.6 0 1.0 -3 50
+shot guests_a -4.8 1.2 0.2 -4.8 0.95 -3 50
+shot guests_b -1.6 1.2 0.2 -1.6 0.95 -3 50
+shot guests_c 1.6 1.2 0.2 1.6 0.95 -3 50
+shot guests_d 4.8 1.2 0.2 4.8 0.95 -3 50
+shot guests_side 1 1.3 -3 -6 1.0 -3 55
+clearguests
+# лежит и драка
+guest 91 8 0 -3 0 down
+guest 31 -9 0 -3 90 brawl
+guest 32 -8 0 -3 270 brawl
+shot guest_down 9.8 1.5 -4.8 8 0.2 -3 52
+shot guest_brawl -8.5 1.5 0 -8.5 0.9 -3 50
+clearguests
+
+# идущий гость (поза ходьбы)
+guestlive
+shot guest_walk 5.5 1.5 -11.5 2 1.0 -16.5 60
+clearguests
+
+# --- предметы на полу (один меш: пол / стеллаж / рука)
+item Form 0 -1.5 0.05 2 20
+item Key 7 -1.0 0.05 2 160
+item Towel 0 -0.5 0.06 2 0
+item Soap 0 0.0 0.04 2 30
+item Napkins 0 0.5 0.05 2 15
+item Money 50 1.0 0.04 2 40
+item Key 14 1.5 0.05 2 200
+shot items_row 0 1.3 0.9 0 0.0 2 60
+shot items_close_a -1.0 0.55 1.3 -1.0 0.0 2 45
+shot items_close_b 0.5 0.55 1.3 0.5 0.0 2 45
+clearitems
+item Mop 0 -1.0 0.06 3.5 90 90 0
+item Sledgehammer 0 1.0 0.08 3.5 90 90 0
+shot items_mop_hammer 0 1.4 1.5 0 0.1 3.5 60
+clearitems
+shot shelves_close 15 1.6 -9 19.1 1.0 -12 62
+
+# --- игрок со стороны
+view tp
+player 6 0 -7 180 0
+held Sledgehammer
+shot player_hammer 6.9 1.3 -10.2 6 1.0 -7 48
+swing 0.5
+shot player_swing 6.9 1.3 -10.2 6 1.0 -7 48
+swing -1
+held Mop
+shot player_mop 6.9 1.3 -10.2 6 1.0 -7 48
+held Key 7
+shot player_key 6.9 1.3 -10.2 6 1.0 -7 48
+held Towel
+shot player_towel 6.9 1.3 -10.2 6 1.0 -7 48
+held none
+shot player_idle 6.9 1.3 -10.2 6 1.0 -7 48
+knock 1
+wait 1
+shot player_down 7 1.8 -9.5 6 0.2 -7 52
+knock 0
+
+# --- от первого лица
+view fp
+player 0 0 1 180 6
+held Sledgehammer
+shotfp fp_sledge
+swing 0.5
+shotfp fp_sledge_swing
+swing -1
+held Mop
+shotfp fp_mop
+held Key 7
+shotfp fp_key
+held Towel
+shotfp fp_towel
+held Form
+shotfp fp_form
+held Money 50
+shotfp fp_money
+held Napkins
+shotfp fp_napkins
+held Soap
+shotfp fp_soap

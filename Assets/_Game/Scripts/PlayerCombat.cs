@@ -16,14 +16,14 @@ namespace Friendslop
         public static readonly System.Collections.Generic.List<PlayerCombat> All = new System.Collections.Generic.List<PlayerCombat>();
         static readonly RaycastHit[] buf = new RaycastHit[24];
         const int HitMask = ~(1 << Items.ItemLayer);       // предметы на полу удар не перехватывают
-        const float SwingTime = 0.28f, FlashTime = 0.3f, SwingAngle = 75f;
+        const float SwingTime = 0.28f, FlashTime = 0.3f, SwingAngle0 = 75f;
 
         public NetworkVariable<bool> IsDown = new NetworkVariable<bool>(false);
 
         PlayerHands hands;
         PlayerController pc;
-        Transform visual;                   // корпус+лицо+рука-для-чужих: ложится на пол при отключке
-        Renderer bodyRend;
+        Transform visual;                   // коллайдер-капсула + модель человечка: ложится на пол при отключке
+        Humanoid humanoid;
 
         // сервер
         float nextHitAt, downUntil, lastTakenAt;
@@ -31,23 +31,26 @@ namespace Friendslop
 
         // все машины (визуал)
         float swingT, flashT, lie, screenFlash;
+        /// <summary>Скриншоты: 0..1 — заморозить фазу взмаха, &lt;0 — обычная работа.</summary>
+        public float ShotSwing = -1f;
+        /// <summary>Текущий угол взмаха, градусы (для viewmodel владельца: PlayerHands).</summary>
+        public float SwingAngle { get; private set; }
         static GUIStyle bigStyle;
 
         public float HitCooldown => hands != null && hands.config != null ? hands.config.hitCooldown : 0.6f;
 
         void Awake()
         {
-            // корпус, лицо и рука для чужих копий — под общий узел, чтобы одним поворотом «уложить» игрока
+            // коллайдер-капсула и модель (рука для чужих копий внутри неё) — под общий узел, чтобы одним поворотом «уложить» игрока
             var v = new GameObject("Visual").transform;
             v.SetParent(transform, false);
-            foreach (var n in new[] { "Body", "Face", "HandWorld" })
+            foreach (var n in new[] { "Body", "Model" })
             {
                 var c = transform.Find(n);
                 if (c != null) c.SetParent(v, false);
             }
             visual = v;
-            var body = v.Find("Body");
-            if (body != null) bodyRend = body.GetComponent<Renderer>();
+            humanoid = v.GetComponentInChildren<Humanoid>(true);
         }
 
         public override void OnNetworkSpawn()
@@ -136,6 +139,9 @@ namespace Friendslop
             Debug.Log($"[FIGHT] {name} knocked out for {seconds:0.#}s");
         }
 
+        /// <summary>Сервер: поднять игрока сразу (скриншоты).</summary>
+        public void ServerWake() { if (IsServer && IsSpawned) { IsDown.Value = false; downUntil = 0f; } }
+
         // ------------------------------------------------------------ клиент-владелец: ввод
 
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
@@ -178,18 +184,21 @@ namespace Friendslop
 
             lie = Mathf.MoveTowards(lie, IsDown.Value ? 1f : 0f, dt * 6f);
             visual.localRotation = Quaternion.Euler(-90f * lie, 0f, 0f);
-            visual.localPosition = new Vector3(0f, 0.4f * lie, 0f);
+            visual.localPosition = new Vector3(0f, 0.4f * lie, 0f);      // капсула-коллайдер лежит на полу (радиус 0.4)
 
-            // мах кувалдой: рука качнётся вперёд-вниз и вернётся
-            if (swingT > 0f) swingT = Mathf.Max(0f, swingT - dt);
-            var anchor = hands != null ? (IsOwner ? hands.handView : hands.handWorld) : null;
-            if (anchor != null)
-                anchor.localRotation = Quaternion.Euler(Mathf.Sin((1f - swingT / SwingTime) * Mathf.PI) * (swingT > 0f ? SwingAngle : 0f), 0f, 0f);
-
-            // вспышка попадания у чужих копий
-            if (flashT > 0f) flashT = Mathf.Max(0f, flashT - dt);
-            if (bodyRend != null && !IsOwner)
-                bodyRend.material.color = Color.Lerp(PlayerController.Palette[(int)(OwnerClientId % (ulong)PlayerController.Palette.Length)], new Color(1f, 0.15f, 0.1f), flashT / FlashTime);
+            // мах кувалдой: рука качнётся вперёд-вниз и вернётся (у чужих — рука модели, у владельца — viewmodel в PlayerHands)
+            if (ShotSwing >= 0f) swingT = SwingTime * (1f - ShotSwing);
+            else if (swingT > 0f) swingT = Mathf.Max(0f, swingT - dt);
+            SwingAngle = Mathf.Sin((1f - swingT / SwingTime) * Mathf.PI) * (swingT > 0f ? SwingAngle0 : 0f);
+            if (humanoid != null)
+            {
+                humanoid.lie = lie;
+                humanoid.transform.localPosition = new Vector3(0f, -0.26f * lie, 0f);   // человечек тоньше капсулы: ложится на пол
+                humanoid.swing = SwingAngle;
+                // вспышка попадания у чужих копий
+                if (flashT > 0f) flashT = Mathf.Max(0f, flashT - dt);
+                humanoid.SetFlash(IsOwner ? 0f : flashT / FlashTime);
+            }
             if (screenFlash > 0f) screenFlash = Mathf.Max(0f, screenFlash - dt);
         }
 

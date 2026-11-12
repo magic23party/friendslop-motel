@@ -10,5 +10,7 @@ namespace Friendslop
         public GameObject[] visuals;            // по (int)ItemType
         public Vector3[] handOffset;            // положение в руке (в камере) по (int)ItemType
         public Vector3[] handEuler;
+        public Vector3[] worldHandOffset;       // положение в правой руке модели (чужие копии, P2)
+        public Vector3[] worldHandEuler;
     }
 }

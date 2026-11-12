@@ -98,7 +98,10 @@ namespace Friendslop.EditorTools
             light.color = Palette.Moon;
             light.intensity = 2.0f;
             light.shadows = LightShadows.Soft;
-            light.shadowStrength = 0.9f;
+            light.shadowStrength = 1.0f;
+            // P2-fix: плоскость ближнего отсечения теней по умолчанию 0.2 м — крыша/потолок выше объёма каскада отсекались и не давали тени,
+            // лунный свет «протекал» внутрь (голубой градиент на стенах). 10 м хватает, чтобы крыша всегда была в карте теней.
+            light.shadowNearPlane = 10f;
 
             // глобальный Volume: тонмаппинг, bloom (неон, лампы), vignette, цвет
             if (AssetDatabase.LoadAssetAtPath<VolumeProfile>(PostPath) != null) AssetDatabase.DeleteAsset(PostPath);

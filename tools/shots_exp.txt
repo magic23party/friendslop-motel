@@ -1,0 +1,22 @@
+spawner off
+view fp
+player 0 0 1 180 6
+held Sledgehammer
+shotfp h_base
+swing 0.5
+shotfp h_swing
+swing 0.25
+shotfp h_swing25
+swing -1
+held Mop
+handaim Mop fp 0.55 0.0 -0.8 0.15 0
+shotfp m4
+handaim Mop fp 0.5 0.15 -0.75 0.25 0
+shotfp m5
+handaim Mop fp 0.35 -0.1 -0.9 0.1 0
+shotfp m6
+held Key 7
+handpose Key fp 0 0.02 0.10 60 20 0
+shotfp k3
+handpose Key fp 0.02 0.03 0.12 50 -20 0
+shotfp k4

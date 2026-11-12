@@ -132,20 +132,10 @@ namespace Friendslop.EditorTools
             nt.SyncScaleX = nt.SyncScaleY = nt.SyncScaleZ = false;
             nt.SyncRotAngleX = false; nt.SyncRotAngleZ = false;
 
-            var body = Prim(PrimitiveType.Capsule, "Body", root.transform, new Vector3(0, 0.9f, 0), new Vector3(0.8f, 0.9f, 0.8f), Mat("PlayerBody", Color.white));
-            var white = Mat("Eye", Color.white);
-            var black = Mat("Pupil", new Color(0.05f, 0.05f, 0.05f));
-            var face = new GameObject("Face").transform;
-            face.SetParent(root.transform, false);
-            var renderers = new List<Renderer> { body.GetComponent<Renderer>() };
-            foreach (float sx in new[] { -0.14f, 0.14f })
-            {
-                var eye = Prim(PrimitiveType.Sphere, "Eye", face, new Vector3(sx, 1.55f, 0.30f), Vector3.one * 0.17f, white, false);
-                var pup = Prim(PrimitiveType.Sphere, "Pupil", face, new Vector3(sx, 1.55f, 0.385f), Vector3.one * 0.08f, black, false);
-                renderers.Add(eye.GetComponent<Renderer>()); renderers.Add(pup.GetComponent<Renderer>());
-            }
-            var mouth = Prim(PrimitiveType.Cube, "Mouth", face, new Vector3(0, 1.30f, 0.34f), new Vector3(0.22f, 0.05f, 0.05f), black, false);
-            renderers.Add(mouth.GetComponent<Renderer>());
+            var body = BodyCollider(root.transform);       // P2: невидимая капсула-коллайдер; видимый человечек — «Model» без коллайдеров
+            var model = BuildHumanoid(root.transform);
+            model.hatCap.SetActive(true);
+            model.badge.SetActive(true);
 
             var pivot = new GameObject("CamPivot").transform;
             pivot.SetParent(root.transform, false);
@@ -163,21 +153,19 @@ namespace Friendslop.EditorTools
             var handView = new GameObject("HandView").transform;
             handView.SetParent(pivot, false);
             handView.localPosition = new Vector3(0.32f, -0.30f, 0.55f);
-            var handWorld = new GameObject("HandWorld").transform;
-            handWorld.SetParent(root.transform, false);
-            handWorld.localPosition = new Vector3(0.35f, 1.15f, 0.45f);
             var hands = root.AddComponent<PlayerHands>();
             hands.config = cfg;
             hands.handView = handView;
-            hands.handWorld = handWorld;
+            hands.handWorld = model.handR;               // у чужих копий предмет в правой руке модели
+            hands.fpArm = BuildFpArm(handView, out hands.fpSleeve, out hands.fpSkin);
 
             var pc = root.AddComponent<PlayerController>();
             pc.config = cfg;
             pc.camPivot = pivot;
             pc.cam = cam;
             pc.listener = listener;
-            pc.bodyRenderers = renderers.ToArray();
-            pc.tintRenderer = body.GetComponent<Renderer>();
+            pc.bodyRenderers = model.GetComponentsInChildren<Renderer>(true);
+            pc.humanoid = model;
             pc.bodyCollider = body.GetComponent<Collider>();
 
             root.AddComponent<PlayerCombat>();           // C5: удар кувалдой, отключка

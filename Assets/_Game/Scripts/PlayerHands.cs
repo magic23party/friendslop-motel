@@ -23,7 +23,9 @@ namespace Friendslop
 
         public GameConfig config;
         public Transform handView;      // в руке от первого лица (под камерой)
-        public Transform handWorld;     // для чужих копий (у корпуса)
+        public Transform handWorld;     // для чужих копий (правая рука модели)
+        public GameObject fpArm;        // рука от первого лица (P2), видна владельцу, пока в руке предмет
+        public Renderer[] fpSleeve, fpSkin;
 
         public NetworkVariable<HeldItem> Held = new NetworkVariable<HeldItem>(
             default, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
@@ -38,7 +40,12 @@ namespace Friendslop
 
         PlayerController pc;
         PlayerCombat combat;
+        Humanoid humanoid;
         GameObject visual;
+        bool shotTp;                    // скриншоты: предмет в руке модели и у владельца
+        Transform handItem;             // предмет в руке от первого лица: вращается взмахом/шваброй вокруг кисти, рука-модель при этом не крутится
+        Vector3 viewBase, lastPos;
+        float viewSpeed, bobPhase, mopT;
         bool sentDown;
         IInteractable sentTarget;
         int testStage;
@@ -53,6 +60,15 @@ namespace Friendslop
         {
             pc = GetComponent<PlayerController>();
             combat = GetComponent<PlayerCombat>();
+            humanoid = GetComponentInChildren<Humanoid>(true);
+            if (handView != null)
+            {
+                viewBase = handView.localPosition;
+                var hi = new GameObject("HandItem").transform;
+                hi.SetParent(handView, false);
+                handItem = hi;
+            }
+            lastPos = transform.position;
             All.Add(this);
             if (IsOwner) Local = this;
             Held.OnValueChanged += OnHeldChanged;
@@ -76,16 +92,68 @@ namespace Friendslop
             if (visual != null) Destroy(visual);
             visual = null;
             var h = Held.Value;
+            bool fp = IsOwner && !shotTp;
+            if (humanoid != null) humanoid.carry = !h.IsNone;
+            if (fpArm != null) fpArm.SetActive(fp && !h.IsNone);
             if (h.IsNone) return;
-            var anchor = IsOwner ? handView : handWorld;
+            var anchor = fp ? handItem : handWorld;
             if (anchor == null) return;
-            visual = Items.CreateVisual(h.type, anchor, false);
+            visual = Items.CreateVisual(h, anchor, false);
             if (visual == null) return;
-            if (IsOwner && Items.Db != null && (int)h.type < Items.Db.handOffset.Length)
+            var db = Items.Db;
+            var off = db != null ? (fp ? db.handOffset : db.worldHandOffset) : null;
+            var eul = db != null ? (fp ? db.handEuler : db.worldHandEuler) : null;
+            int ti = (int)h.type;
+            if (off != null && eul != null && ti < off.Length && ti < eul.Length)
             {
-                visual.transform.localPosition = Items.Db.handOffset[(int)h.type];
-                visual.transform.localRotation = Quaternion.Euler(Items.Db.handEuler[(int)h.type]);
+                visual.transform.localPosition = off[ti];
+                visual.transform.localRotation = Quaternion.Euler(eul[ti]);
             }
+        }
+
+        /// <summary>Цвет рукава и кожи руки от первого лица (как у модели).</summary>
+        public void PaintFpArm(Color sleeve, Color skin)
+        {
+            Humanoid.Paint(fpSleeve, sleeve * 0.9f);
+            Humanoid.Paint(fpSkin, skin * 0.8f);          // рука у самой лампы: чуть темнее, чтобы не выгорала
+        }
+
+        /// <summary>Скриншоты (P2): true — предмет показывать в руке модели (вид со стороны), false — viewmodel.</summary>
+        public void ShotThirdPerson(bool tp) { shotTp = tp; RefreshVisual(); }
+
+        // viewmodel владельца: покачивание при ходьбе, дыхание, мах кувалдой (угол от PlayerCombat), взмахи шваброй при зажатой ЛКМ
+        void LateUpdate()
+        {
+            if (!IsSpawned || !IsOwner || handView == null) return;
+            float dt = Time.deltaTime;
+            if (dt <= 0f) return;
+            var p = transform.position;
+            var d = p - lastPos; d.y = 0f;
+            lastPos = p;
+            float sp = Mathf.Min(d.magnitude / dt, 12f);
+            viewSpeed = Mathf.Lerp(viewSpeed, sp, 1f - Mathf.Exp(-10f * dt));
+            float k = Mathf.Clamp01(viewSpeed / Mathf.Max(0.1f, config != null ? config.moveSpeed : 5f));
+            bobPhase += dt * (3f + viewSpeed * 1.5f);
+
+            var pos = viewBase;
+            pos.x += Mathf.Sin(bobPhase) * 0.014f * k;
+            pos.y += -Mathf.Abs(Mathf.Sin(bobPhase)) * 0.026f * k + Mathf.Sin(Time.time * 1.4f) * 0.004f;
+            float swing = combat != null ? combat.SwingAngle : 0f;
+            var rot = Quaternion.Euler(swing, 0f, 0f);
+
+            var ms = Mouse.current;
+            bool mopping = ms != null && ms.leftButton.isPressed && Held.Value.type == ItemType.Mop && pc != null && pc.Placed && !pc.MenuOpen && !Downed && Application.isFocused;
+            if (mopping)
+            {
+                mopT += dt * 7f;
+                rot *= Quaternion.Euler(Mathf.Sin(mopT * 0.5f) * 6f, Mathf.Sin(mopT) * 20f, Mathf.Sin(mopT) * 7f);
+                pos.x += Mathf.Sin(mopT) * 0.07f;
+            }
+            // взмах: предмет поворачивается в кисти, кисть чуть уходит вперёд-вниз (рука остаётся на месте)
+            float sw = Mathf.Clamp01(swing / 75f);
+            pos += new Vector3(0f, -0.10f * sw, 0.10f * sw);
+            handView.localPosition = Vector3.Lerp(handView.localPosition, pos, 1f - Mathf.Exp(-20f * dt));
+            if (handItem != null) handItem.localRotation = rot;
         }
 
         // ------------------------------------------------------------ сервер: API для целей

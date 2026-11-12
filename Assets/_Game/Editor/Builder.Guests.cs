@@ -32,14 +32,8 @@ namespace Friendslop.EditorTools
             agent.obstacleAvoidanceType = ObstacleAvoidanceType.LowQualityObstacleAvoidance;
             agent.enabled = false;                                   // включает только сервер в OnNetworkSpawn
 
-            var body = Prim(PrimitiveType.Capsule, "Body", root.transform, new Vector3(0, 0.9f, 0), new Vector3(0.8f, 0.9f, 0.8f), Mat("GuestBody", new Color(0.92f, 0.55f, 0.18f)));
-            var white = Mat("Eye", Color.white);
-            var black = Mat("Pupil", new Color(0.05f, 0.05f, 0.05f));
-            foreach (float sx in new[] { -0.14f, 0.14f })
-            {
-                Prim(PrimitiveType.Sphere, "Eye", root.transform, new Vector3(sx, 1.55f, 0.30f), Vector3.one * 0.17f, white, false);
-                Prim(PrimitiveType.Sphere, "Pupil", root.transform, new Vector3(sx, 1.55f, 0.385f), Vector3.one * 0.08f, black, false);
-            }
+            BodyCollider(root.transform);                            // P2: невидимая капсула-коллайдер
+            BuildHumanoid(root.transform);                           // P2: человечек; вид задаёт сид (Guest.Look), аксессуары включает Humanoid
             var status = Label(root.transform, "", new Vector3(0, 2.35f, 0), Vector3.back, 0.16f, Color.white, "Status");
 
             var guest = root.AddComponent<Guest>();

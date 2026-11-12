@@ -54,6 +54,8 @@ namespace Friendslop
         public NetworkVariable<int> RoomNo = new NetworkVariable<int>(0);
         /// <summary>ХП (C5: 1 удар кувалдой = 1 ХП).</summary>
         public NetworkVariable<int> Hp = new NetworkVariable<int>(3);
+        /// <summary>Сид внешнего вида (P2): рост, телосложение, цвета, шляпа/очки/чемодан. Один сид — одинаковый гость у всех клиентов.</summary>
+        public NetworkVariable<int> Look = new NetworkVariable<int>(0);
 
         // сервер
         PlayerCombat aggroTarget;   // кого бьёт (ударил гостя)
@@ -78,10 +80,11 @@ namespace Friendslop
         // визуал (все машины)
         const float FlashTime = 0.3f, PunchTime = 0.25f;
         Transform vis;
-        Renderer bodyRend;
-        Color baseCol = Color.white;
+        Humanoid humanoid;
         float lie, flashT, punchT, phase;
-        bool tinted;
+        int pendingLook;
+        /// <summary>Скриншоты (P2): гость замёрз на месте (не ходит, не уходит).</summary>
+        public bool ShotFrozen { get; private set; }
 
         public bool IsLiving => State.Value == GuestState.Living;
         /// <summary>Сервер: можно втянуть в драку (живёт в номере, не отвлечён на агрессию, не побит).</summary>
@@ -127,6 +130,7 @@ namespace Friendslop
         {
             nonPayer = isNonPayer;
             ticket = ++ticketCounter;
+            pendingLook = Random.Range(1, int.MaxValue);          // вид не зависит от nonPayer: неплательщик внешне неотличим
         }
 
         void Awake()
@@ -139,18 +143,23 @@ namespace Friendslop
             foreach (Transform c in transform) if (c != v && (status == null || c != status.transform)) kids.Add(c);
             foreach (var c in kids) c.SetParent(v, false);
             vis = v;
-            var body = v.Find("Body");
-            if (body != null)
-            {
-                bodyRend = body.GetComponent<Renderer>();
-                if (bodyRend != null && bodyRend.sharedMaterial != null) baseCol = bodyRend.sharedMaterial.color;
-            }
+            humanoid = v.GetComponentInChildren<Humanoid>(true);
             phase = Random.value * 6.28f;
+        }
+
+        void OnLookChanged(int prev, int now)
+        {
+            if (humanoid != null) humanoid.ApplyLook(now);
+            Debug.Log($"[GUEST] look changed to {now} (server={IsServer})");
         }
 
         public override void OnNetworkSpawn()
         {
             All.Add(this);
+            Look.OnValueChanged += OnLookChanged;
+            if (IsServer && Look.Value == 0) Look.Value = pendingLook != 0 ? pendingLook : Random.Range(1, int.MaxValue);
+            if (humanoid != null) humanoid.ApplyLook(Look.Value);
+            Debug.Log($"[GUEST] look seed={Look.Value} server={IsServer}");
             if (IsServer)
             {
                 Hp.Value = config != null ? config.npcHp : 3;
@@ -170,6 +179,7 @@ namespace Friendslop
 
         public override void OnNetworkDespawn()
         {
+            Look.OnValueChanged -= OnLookChanged;
             All.Remove(this);
             if (IsServer) GameState.ServerRestarted -= ServerDespawn;
         }
@@ -266,7 +276,7 @@ namespace Friendslop
         {
             var gs = Gs;
             var map = MotelMap.Instance;
-            if (gs == null || map == null || config == null) return;
+            if (gs == null || map == null || config == null || ShotFrozen) return;
             if (gs.Phase.Value != GamePhase.Playing)
             {
                 if (agent.enabled && agent.isOnNavMesh) agent.isStopped = true;      // Game Over / лобби — заморозка
@@ -621,11 +631,28 @@ namespace Friendslop
             }
             vis.localPosition = new Vector3(0f, 0.4f * lie + hop + wob, lunge);
             vis.localRotation = Quaternion.Euler(-90f * lie, 0f, lean);
-            if (bodyRend != null && (flashT > 0f || tinted))
+            if (humanoid != null)
             {
-                tinted = flashT > 0f;
-                bodyRend.material.color = Color.Lerp(baseCol, new Color(1f, 0.15f, 0.1f), flashT / FlashTime);
+                humanoid.lie = lie;
+                humanoid.transform.localPosition = new Vector3(0f, -0.26f * lie, 0f);   // человечек тоньше капсулы: ложится на пол
+                humanoid.armsUp = s == GuestState.Brawl;
+                humanoid.punch = Mathf.Sin(punchT / PunchTime * Mathf.PI);
+                humanoid.SetFlash(flashT / FlashTime);
             }
+        }
+
+        /// <summary>Скриншоты (P2): сервер ставит замороженного гостя с видом по сиду. flag: "" | "down" | "brawl".</summary>
+        public void ShotStage(int lookSeed, Vector3 pos, float yawDeg, string flag)
+        {
+            if (!IsServer || !IsSpawned) return;
+            ShotFrozen = true;
+            Look.Value = lookSeed;
+            if (humanoid != null) humanoid.ApplyLook(lookSeed);
+            if (agent != null && agent.enabled && agent.isOnNavMesh) { agent.isStopped = true; agent.Warp(pos); }
+            else transform.position = pos;
+            transform.rotation = Quaternion.Euler(0f, yawDeg, 0f);
+            if (flag == "down") Enter(GuestState.Down, Gs.Now + 100000);
+            else if (flag == "brawl") Enter(GuestState.Brawl);
         }
 
         // ------------------------------------------------------------ взаимодействие (IInteractable)

@@ -66,7 +66,7 @@ namespace Friendslop
         void Rebuild()
         {
             if (visual != null) Destroy(visual);
-            visual = Items.CreateVisual(Item.Value.type, transform, true);
+            visual = Items.CreateVisual(Item.Value, transform, true);
             if (visual != null) Items.SetLayer(visual, Items.ItemLayer);
         }
 

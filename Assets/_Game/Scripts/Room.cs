@@ -33,7 +33,8 @@ namespace Friendslop
         public GameObject[] supplyStock;  // предметы на этих точках (видны, если расходник на месте)
         public RoomSpot stainSpot;        // цель для швабры
         public TextMesh signNumber;       // табличка над дверью: номер
-        public TextMesh signStatus;       // табличка: статус / список нужного
+        public TextMesh signStatus;       // табличка: статус / список нужного (текст остаётся для самотестов; при «нужно» вместо него рисуются значки)
+        public GameObject[] signIcons;    // значки нужного на табличке (P2): 0 полотенце, 1 мыло, 2 салфетки, 3 грязь
         public GameObject blocker;        // стена-заглушка в проёме, если номер закрыт
 
         public NetworkVariable<byte> StateVar = new NetworkVariable<byte>((byte)RoomState.Ready);
@@ -254,6 +255,12 @@ namespace Friendslop
                     if (supplyStock[i] != null) supplyStock[i].SetActive(!Needs(i));
 
             if (signStatus == null) return;
+            bool needs = !locked && State == RoomState.NeedsService;
+            var smr = signStatus.GetComponent<MeshRenderer>();
+            if (smr != null) smr.enabled = !needs;              // список «нужно» мелкий — вместо него цветные значки
+            if (signIcons != null)
+                for (int i = 0; i < signIcons.Length; i++)
+                    if (signIcons[i] != null) signIcons[i].SetActive(needs && (i < SupplyTypes.Length ? Needs(i) : HasStain));
             if (locked) { signStatus.text = ""; return; }
             switch (State)
             {
