@@ -53,6 +53,15 @@ namespace Friendslop
         public NetworkVariable<double> ShiftStart = new NetworkVariable<double>(0);
         /// <summary>Длительность смены, фиксируется при Game Over.</summary>
         public NetworkVariable<float> ShiftSeconds = new NetworkVariable<float>(0);
+        /// <summary>V4: итоги для экрана «Мотель закрыт» (фиксируются при Game Over): сколько дней продержались (полных, с оплаченным налогом),
+        /// лучший день по заработку (номер и сумма; день N = утро N .. утро N+1), рекорд хоста (дней) и признак «новый рекорд».</summary>
+        public NetworkVariable<int> DaysSurvived = new NetworkVariable<int>(0);
+        public NetworkVariable<int> BestDayNo = new NetworkVariable<int>(0);
+        public NetworkVariable<int> BestDayEarned = new NetworkVariable<int>(0);
+        public NetworkVariable<int> RecordDays = new NetworkVariable<int>(0);
+        public NetworkVariable<bool> NewRecord = new NetworkVariable<bool>(false);
+        int dayEarnedStart;      // сервер: значение Earned в начале текущего дня
+        public const string RecordKey = "friendslop.record.days";
 
         public float DayLength => FastDay ? 40f : FastTax ? 20f : config.dayLength;
         public float NightLength => FastDay ? 20f : FastTax ? 20f : config.nightLength;
@@ -146,6 +155,7 @@ namespace Friendslop
             else
             {
                 // утро: следующий день, налог растёт
+                CloseDayStats();
                 Night.Value = false;
                 Day.Value++;
                 warned = false;
@@ -174,6 +184,9 @@ namespace Friendslop
             if (baseRooms > 0) RoomCount.Value = baseRooms;
             Money.Value = config.startMoney;
             Earned.Value = 0;
+            dayEarnedStart = 0;
+            DaysSurvived.Value = 0; BestDayNo.Value = 0; BestDayEarned.Value = 0; NewRecord.Value = false;
+            RecordDays.Value = LoadRecord();
             TaxDue.Value = false;
             Night.Value = false;
             Day.Value = 1;
@@ -316,9 +329,38 @@ namespace Friendslop
         {
             if (!IsServer || Phase.Value != GamePhase.Playing) return;
             ShiftSeconds.Value = (float)(Now - ShiftStart.Value);
+            CloseDayStats();
+            DaysSurvived.Value = Mathf.Max(0, Day.Value - 1);
+            int rec = shotRecord >= 0 ? shotRecord : LoadRecord();
+            NewRecord.Value = DaysSurvived.Value > rec;
+            if (NewRecord.Value) { rec = DaysSurvived.Value; SaveRecord(rec); }
+            RecordDays.Value = rec;
             Phase.Value = GamePhase.GameOver;
-            Debug.Log($"[TAX] GAME OVER: tax {TaxAmount} $ unpaid on day {Day.Value}, shift {ShiftSeconds.Value:0}s, earned {Earned.Value} $");
+            Debug.Log($"[TAX] GAME OVER: tax {TaxAmount} $ unpaid on day {Day.Value}, shift {ShiftSeconds.Value:0}s, earned {Earned.Value} $, survived {DaysSurvived.Value} days, best day {BestDayNo.Value} (+{BestDayEarned.Value} $), record {rec}{(NewRecord.Value ? " NEW" : "")}");
         }
+
+        /// <summary>Сервер: закрыть текущий день в статистике (лучший день по заработку; ночные поступления входят в день).</summary>
+        void CloseDayStats()
+        {
+            int e = Earned.Value - dayEarnedStart;
+            if (e > BestDayEarned.Value || BestDayNo.Value == 0) { BestDayEarned.Value = e; BestDayNo.Value = Day.Value; }
+            dayEarnedStart = Earned.Value;
+        }
+
+        // рекорд хоста (дней) — в PlayerPrefs; в batchmode (самотесты) и режиме скриншотов не читаем и не пишем, чтобы тесты не трогали реальный рекорд
+        static bool PrefsOff => Application.isBatchMode || NetBootstrap.Arg("-shot");
+        static int LoadRecord() { return PrefsOff ? 0 : PlayerPrefs.GetInt(RecordKey, 0); }
+        static void SaveRecord(int days) { if (PrefsOff) return; PlayerPrefs.SetInt(RecordKey, days); PlayerPrefs.Save(); }
+
+        /// <summary>Скриншоты: подставить итоги (день, заработано, лучший день, рекорд) перед gameover.</summary>
+        public void ServerShotStats(int day, int earned, int bestNo, int bestEarned, int record)
+        {
+            if (!IsServer) return;
+            Day.Value = day; Earned.Value = earned; dayEarnedStart = earned;
+            BestDayNo.Value = bestNo; BestDayEarned.Value = bestEarned;
+            shotRecord = record;
+        }
+        int shotRecord = -1;
 
         /// <summary>Сервер (кнопка хоста «Заново»): новая смена с тем же числом комнат.</summary>
         public bool ServerRestart()

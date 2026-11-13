@@ -74,12 +74,16 @@ namespace Friendslop
             yield return WaitFor(() => gs.Phase.Value == GamePhase.GameOver, gs.NightLength + 10f);
             Check(gs.Phase.Value == GamePhase.GameOver && gs.Day.Value == 2, "game over at end of night 2 (unpaid)");
             Check(Guest.StatSpawned == spawned, "no guests spawned during night 2");
+            // V4: итоги — продержались 1 полный день (налог 1 уплачен), лучший день включает 300 $ из ночи 1, рекорд хоста (в batchmode PlayerPrefs не трогаем)
+            Check(gs.DaysSurvived.Value == 1 && gs.NewRecord.Value && gs.RecordDays.Value == 1, $"V4 stats: survived {gs.DaysSurvived.Value}, record {gs.RecordDays.Value}, new={gs.NewRecord.Value}");
+            Check(gs.BestDayNo.Value >= 1 && gs.BestDayNo.Value <= 2 && gs.BestDayEarned.Value >= 300 && gs.Earned.Value >= gs.BestDayEarned.Value, $"V4 stats: best day {gs.BestDayNo.Value} (+{gs.BestDayEarned.Value} $), earned {gs.Earned.Value}");
 
             // ---- «Заново»
             gs.ServerRestart();
             yield return null;
             Check(gs.Phase.Value == GamePhase.Playing && gs.Day.Value == 1 && !gs.Night.Value && !gs.TaxDue.Value && gs.TaxAmount == cfg.taxBase && gs.Money.Value == cfg.startMoney,
                 "restart: day 1, tax " + gs.TaxAmount + " $, money " + gs.Money.Value);
+            Check(gs.DaysSurvived.Value == 0 && gs.BestDayNo.Value == 0 && !gs.NewRecord.Value && gs.Earned.Value == 0, "restart: stats reset");
 
             Debug.Log("[DAY] selftest " + (fails == 0 ? "OK (all done)" : "FAIL count=" + fails));
         }

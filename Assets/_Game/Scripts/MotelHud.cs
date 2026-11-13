@@ -19,7 +19,11 @@ namespace Friendslop
         float bannerUntil;
         string bannerText = "";
         bool bannerNight;
-        static GUIStyle money, valueRight;
+        static GUIStyle money, valueRight, moneyBig;
+        /// <summary>V4: карточка «Как играть» (в лобби открыта по умолчанию, H — показать/скрыть; закрывается кнопкой при свободном курсоре).</summary>
+        public static bool ShowHowTo = true;
+        public static bool ShotKeep;            // режим скриншотов: карточку открывает/закрывает только команда howto, а не смена фазы
+        GamePhase howtoPhase = GamePhase.Lobby;
         static readonly List<KeyValuePair<string, float>> toasts = new List<KeyValuePair<string, float>>();
 
         /// <summary>V2: короткое сообщение всем («Имя купил: Тележка горничной»), живёт ~5 с.</summary>
@@ -44,6 +48,14 @@ namespace Friendslop
                 && (kb.enterKey.wasPressedThisFrame || kb.numpadEnterKey.wasPressedThisFrame)
                 && !(PlayerController.Local != null && PlayerController.Local.MenuOpen))
                 gs.StartShift();
+
+            // V4: карточка «Как играть»: H — показать/скрыть, начало смены — спрятать, возврат в лобби — показать
+            if (gs != null)
+            {
+                var ph0 = gs.Phase.Value;
+                if (ph0 != howtoPhase) { if (!ShotKeep) { if (ph0 == GamePhase.Playing) ShowHowTo = false; if (ph0 == GamePhase.Lobby) ShowHowTo = true; } howtoPhase = ph0; }
+                if (kb != null && kb.hKey.wasPressedThisFrame && ph0 != GamePhase.GameOver && !ShopUi.IsOpen) ShowHowTo = !ShowHowTo;
+            }
 
             // баннер смены дня/ночи (V1): «День N» / «Наступила ночь»
             if (gs != null && gs.Phase.Value == GamePhase.Playing)
@@ -79,6 +91,7 @@ namespace Friendslop
             {
                 money = new GUIStyle(UiStyle.Title) { fontSize = 30, alignment = TextAnchor.MiddleRight };
                 valueRight = new GUIStyle(UiStyle.Header) { alignment = TextAnchor.MiddleRight };
+                moneyBig = new GUIStyle(UiStyle.Title) { fontSize = 30 };
             }
             var gs = GameState.Instance;
             var me = PlayerController.Local;
@@ -119,7 +132,9 @@ namespace Friendslop
             }
 
             if (playing)
-                Ui.Shadowed(new Rect(12, Ui.H - 30, 900, 24), "WASD — ходьба · Shift — бег · Пробел — прыжок · E — действие · G — бросить · Esc — меню", UiStyle.Small, new Color(1, 1, 1, 0.7f));
+                Ui.Shadowed(new Rect(12, Ui.H - 30, 900, 24), "WASD — ходьба · Shift — бег · Пробел — прыжок · E — действие · G — бросить · H — как играть · Esc — меню", UiStyle.Small, new Color(1, 1, 1, 0.7f));
+            if (gs != null && gs.Phase.Value == GamePhase.Playing && playing && !ShowHowTo) DrawTip(cx, gs, hands);
+            if (gs != null && gs.Phase.Value != GamePhase.GameOver && ShowHowTo) DrawHowTo(gs.Phase.Value == GamePhase.Lobby ? 150f : 196f, me != null && me.MenuOpen);
 
             if (gs != null && gs.Phase.Value == GamePhase.GameOver)
             {
@@ -133,14 +148,103 @@ namespace Friendslop
             {
                 UiStyle.Dim(new Rect(0, 0, Ui.W, Ui.H), 0.55f);
                 float x = cx - 190, y = Ui.H / 2f - 140;
-                UiStyle.Plate(new Rect(x, y, 380, 280), UiStyle.Kind.Card);
+                UiStyle.Plate(new Rect(x, y, 380, 344), UiStyle.Kind.Card);
                 UiStyle.NeonTitle(new Rect(x, y + 22, 380, 56), "Пауза", UiStyle.Teal, UiStyle.Cream, 38);
                 y += 100;
                 if (UiStyle.Btn(new Rect(x + 30, y, 320, 50), "Продолжить", true)) me.SetMenu(false);
                 y += 64;
+                if (UiStyle.Btn(new Rect(x + 30, y, 320, 50), "Как играть (H)")) { ShowHowTo = true; me.SetMenu(false); }
+                y += 64;
                 if (UiStyle.Btn(new Rect(x + 30, y, 320, 50), nm.IsServer ? "Закрыть мотель и выйти" : "Выйти в меню"))
                     NetBootstrap.Instance.LeaveToMenu();
             }
+        }
+
+        // ------------------------------------------------------------ V4: «Как играть» и подсказки первых минут
+
+        static readonly string[] HowToText =
+        {
+            "Цель: держите мотель на плаву — заселяйте гостей, убирайте номера и вовремя платите налог.",
+            "Гость у стойки: дайте бланк (со стойки), потом ключ готового номера (с доски за стойкой). Выезд — E с пустыми руками: ключ вернётся, 50 $ уйдут в кассу.",
+            "Роли — договоритесь сами: кто на стойке, кто носит со склада полотенца/мыло/салфетки и моет номера, кто бьёт кувалдой неплательщиков и дерущихся.",
+            "День 8 мин — идут гости. Ночь 3 мин — гостей нет, выставлен счёт: оплатите на терминале налога, иначе мотель закроется. Налог растёт каждый день.",
+            "Магазин (терминал в лобби): улучшения из общей кассы — тележка, кофе, пристройка, вантуз, лампочки. Туалет и засоры тоже требуют рук.",
+            "Что делать — на электронной таблице за стойкой; свободные номера — на табло у входа.",
+        };
+        const string HowToKeys = "WASD — ходьба · Shift — бег · Пробел — прыжок · мышь — камера · E — действие · G — бросить · ЛКМ — использовать (швабра, кувалда, кофе) · Esc — меню · Enter — старт смены (хост) · H — эта карточка";
+
+        void DrawHowTo(float y, bool cursorFree)
+        {
+            const float w = 480f, pad = 18f, tw = w - pad * 2f;
+            float h = 10f + 36f;
+            foreach (var t in HowToText) h += UiStyle.Small.CalcHeight(new GUIContent(t), tw) + 6f;
+            h += 4f + UiStyle.Small.CalcHeight(new GUIContent(HowToKeys), tw) + 6f + 34f;
+            var r = new Rect(12f, y, w, h);
+            UiStyle.Plate(r, UiStyle.Kind.Card);
+            float yy = y + 10f;
+            Ui.Shadowed(new Rect(r.x + pad, yy, tw, 30f), "Как играть", UiStyle.Header, UiStyle.Mustard);
+            yy += 36f;
+            foreach (var t in HowToText)
+            {
+                float lh = UiStyle.Small.CalcHeight(new GUIContent(t), tw);
+                Ui.Shadowed(new Rect(r.x + pad, yy, tw, lh), t, UiStyle.Small, Color.white);
+                yy += lh + 6f;
+            }
+            yy += 4f;
+            float kh = UiStyle.Small.CalcHeight(new GUIContent(HowToKeys), tw);
+            Ui.Shadowed(new Rect(r.x + pad, yy, tw, kh), HowToKeys, UiStyle.Small, UiStyle.TealLight);
+            yy += kh + 6f;
+            if (cursorFree)
+            {
+                if (UiStyle.Btn(new Rect(r.x + pad, yy, 150f, 28f), "Закрыть (H)")) ShowHowTo = false;
+            }
+            else Ui.Shadowed(new Rect(r.x + pad, yy, tw, 24f), "H — закрыть", UiStyle.Small, UiStyle.Mustard);
+        }
+
+        /// <summary>Подсказка по текущей ситуации: первые 2 минуты первого дня. Читает только синхронизированное состояние (гости, номера, предмет в руках).</summary>
+        static string TipText(GameState gs, PlayerHands hands)
+        {
+            if (gs.Day.Value != 1 || gs.Night.Value || gs.ShiftElapsed > 120f) return "";
+            var held = hands != null ? hands.Held.Value : default;
+            if (gs.ShiftElapsed < 10f) return "Смотри таблицу задач за стойкой и табло номеров у входа";
+            Guest form = null, key = null, outg = null;
+            foreach (var g in Guest.All)
+            {
+                if (g == null || !g.IsSpawned) continue;
+                var st = g.State.Value;
+                if (st == GuestState.WaitForm) form = g;
+                else if (st == GuestState.WaitKey) key = g;
+                else if (st == GuestState.WaitCheckOut && !g.Marked.Value) outg = g;
+            }
+            if (form != null)
+                return held.type == ItemType.Form ? "Подойди к гостю и нажми E — отдай бланк"
+                    : held.IsNone ? "Гость у стойки → возьми бланк на стойке (E)" : "Брось предмет (G) и возьми бланк на стойке";
+            if (key != null)
+                return held.type == ItemType.Key ? "Нажми E на госте — выдай ключ"
+                    : held.IsNone ? "Гость ждёт ключ → возьми ключ готового номера с доски за стойкой (E)" : "Брось предмет (G) и возьми ключ с доски за стойкой";
+            if (outg != null)
+                return held.IsNone ? "Гость выезжает → нажми E с пустыми руками" : "Освободи руки (G) и выпиши гостя (E)";
+            foreach (var r in Room.All)
+                if (!r.Locked && r.State == RoomState.NeedsService)
+                    return $"Номер {r.index} ждёт уборки: принеси со склада то, что на таблице, и вымой пятно шваброй (держи ЛКМ)";
+            return "Ждём гостей — таблица задач за стойкой покажет, что делать";
+        }
+
+        static void DrawTip(float cx, GameState gs, PlayerHands hands)
+        {
+            string tip = TipText(gs, hands);
+            if (tip == "") return;
+            float tw = UiStyle.Label.CalcSize(new GUIContent(tip)).x;
+            var r = new Rect(cx - tw / 2f - 18f, 14f, tw + 36f, 40f);
+            UiStyle.Plate(r, UiStyle.Kind.Card);
+            Ui.Shadowed(new Rect(r.x + 18f, r.y, tw + 8f, 40f), tip, UiStyle.Label, UiStyle.Cream);
+        }
+
+        static string DaysWord(int n)
+        {
+            int a = n % 100, b = n % 10;
+            if (a >= 11 && a <= 14) return n + " дней";
+            return n + (b == 1 ? " день" : b >= 2 && b <= 4 ? " дня" : " дней");
         }
 
         // ------------------------------------------------------------ подсказка под прицелом и предмет в руках
@@ -245,18 +349,26 @@ namespace Friendslop
         {
             float cx = Ui.W / 2f;
             UiStyle.Dim(new Rect(0, 0, Ui.W, Ui.H), 0.72f);
-            float w = 560f, h = 440f, x = cx - w / 2f, y = Ui.H / 2f - h / 2f;
+            float w = 580f, h = 510f, x = cx - w / 2f, y = Ui.H / 2f - h / 2f;
             UiStyle.Plate(new Rect(x, y, w, h), UiStyle.Kind.Card);
-            UiStyle.NeonTitle(new Rect(x, y + 22, w, 60), "Мотель закрыт", UiStyle.Alert, new Color(1f, 0.9f, 0.88f), 42);
-            Ui.Shadowed(new Rect(x, y + 88, w, 30), "Налог не оплачен вовремя", UiStyle.Center, Color.white);
+            UiStyle.NeonTitle(new Rect(x, y + 18, w, 60), "Мотель закрыт", UiStyle.Alert, new Color(1f, 0.9f, 0.88f), 42);
+            Ui.Shadowed(new Rect(x, y + 80, w, 28), $"Налог {gs.TaxAmount} $ не оплачен вовремя", UiStyle.Center, Color.white);
+            Ui.Shadowed(new Rect(x, y + 112, w, 44), $"Продержались {DaysWord(gs.DaysSurvived.Value)}", moneyBig, UiStyle.Mustard);
 
-            UiStyle.Plate(new Rect(x + 40, y + 130, w - 80, 86));
-            Ui.Shadowed(new Rect(x + 60, y + 138, 240, 34), "Смена длилась", UiStyle.Label, UiStyle.Cream);
-            Ui.Shadowed(new Rect(x + w - 260, y + 138, 200, 34), TaskBoard.Fmt(gs.ShiftSeconds.Value), valueRight, Color.white);
-            Ui.Shadowed(new Rect(x + 60, y + 174, 240, 34), "Заработано", UiStyle.Label, UiStyle.Cream);
-            Ui.Shadowed(new Rect(x + w - 260, y + 174, 200, 34), $"{gs.Earned.Value} $", valueRight, UiStyle.Good);
+            UiStyle.Plate(new Rect(x + 40, y + 166, w - 80, 166));
+            float ry = y + 172f;
+            void Row(string label, string value, Color c)
+            {
+                Ui.Shadowed(new Rect(x + 60, ry, 240, 34), label, UiStyle.Label, UiStyle.Cream);
+                Ui.Shadowed(new Rect(x + w - 300, ry, 240, 34), value, valueRight, c);
+                ry += 36f;
+            }
+            Row("Заработано всего", $"{gs.Earned.Value} $", UiStyle.Good);
+            Row("Лучший день", gs.BestDayNo.Value > 0 ? $"день {gs.BestDayNo.Value} · {gs.BestDayEarned.Value} $" : "—", UiStyle.Good);
+            Row("Смена длилась", TaskBoard.Fmt(gs.ShiftSeconds.Value), Color.white);
+            Row("Рекорд хоста", gs.NewRecord.Value ? $"{DaysWord(gs.RecordDays.Value)} · новый!" : DaysWord(gs.RecordDays.Value), gs.NewRecord.Value ? UiStyle.Mustard : Color.white);
 
-            float by = y + 242f;
+            float by = y + 354f;
             if (nm.IsServer)
             {
                 if (UiStyle.Btn(new Rect(x + 90, by, w - 180, 52), "Заново", true)) gs.ServerRestart();

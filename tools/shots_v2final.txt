@@ -1,0 +1,52 @@
+# V4 финал: лобби днём/ночью, «Как играть», подсказка первых минут, электронная таблица задач, магазин, Game Over
+# запуск: powershell -ExecutionPolicy Bypass -File tools/shots.ps1 -Label v2final -ShotFile tools/shots_v2final.txt
+spawner off
+view fp
+daynight day
+# подсказка первых минут: гость у стойки, в руках пусто (смена идёт >10 с)
+guestlive
+wait 11
+player 1.5 0 -11.6 180 8
+uishotfp v2f_tip_first_minutes 0.6
+# электронная таблица за стойкой: номера, туалет, счёт, гости
+room 1 occupied
+room 2 needs 7 stain clog lamp
+room 3 needs 5 stain
+room 4 occupied
+room 5 needs 3
+room 6 occupied
+room 7 needs 1 stain
+room 8 ready
+room 9 needs 2
+toilet both
+taxdue 1
+wait 1
+shot v2f_taskwall_5m 3.0 1.7 -15.3 0 1.95 -10.1 62
+shot v2f_taskwall_6m -2.6 1.7 -16.2 0 1.95 -10.1 62
+shot v2f_entrance_board 5.4 1.7 -18.4 10.9 1.55 -18.4 56
+taxdue 0
+toilet clean
+# магазин (касса 220: часть товаров доступна, часть нет)
+money 220
+cam -12 1.7 -7 -19.3 1.2 -9 70
+shop 1
+uishot v2f_shop 0.6
+shop 0
+# Game Over: 3 дня, лучший день — третий; рекорд хоста был 2
+gameover 4 1380 3 520 2
+cam 12 1.9 1 -3 1.2 -13 72
+uishot v2f_gameover 0.8
+# лобби: днём и ночью, карточка «Как играть» закрыта / открыта
+phase lobby
+howto 0
+daynight day
+cam 14 1.9 1 -3 1.2 -13 72
+uishot v2f_lobby_day 0.8
+daynight night
+uishot v2f_lobby_night 0.8
+howto 1
+uishot v2f_howto_night 0.8
+daynight day
+uishot v2f_howto_day 0.8
+# ночью снаружи (вывеска, окна)
+shot v2f_night_outside -8 2.2 -40 0 2.4 -20 64

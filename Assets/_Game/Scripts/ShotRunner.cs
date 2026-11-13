@@ -43,7 +43,9 @@ namespace Friendslop
     ///   fx hit x y z | fx money дельта x y z   эффекты: искры удара / всплывашка денег со звуком
     ///   taxdue 0|1                          выставить/снять налоговый счёт (HUD, тревога; 1 = ночь)
     ///   daynight day|night|dusk|auto        зафиксировать свет дня/ночи/сумерек (V1) или вернуть управление фазой (auto)
-    ///   gameover                            «Мотель закрыт» (экран Game Over)
+    ///   gameover [день заработано лучший_день сумма рекорд]  «Мотель закрыт» (экран Game Over; с аргументами — подставить итоги V4)
+    ///   howto 0|1                           V4: карточка «Как играть»
+    ///   phase lobby|play                    V4: лобби / смена (кадры лобби днём и ночью)
     /// <c>-shotwait N</c> — подождать N с смены до первого кадра (чтобы пришли гости).
     /// </summary>
     public class ShotRunner : MonoBehaviour
@@ -391,8 +393,20 @@ namespace Friendslop
                     yield return null;
                     break;
                 }
-                case "gameover":
-                    if (GameState.Instance != null) GameState.Instance.GameOver();
+                case "gameover":      // gameover [день заработано лучший_день его_сумма рекорд] — V4: итоги для экрана «Мотель закрыт»
+                    if (GameState.Instance != null)
+                    {
+                        if (s.Length >= 6) GameState.Instance.ServerShotStats((int)F(s, 1), (int)F(s, 2), (int)F(s, 3), (int)F(s, 4), (int)F(s, 5));
+                        GameState.Instance.GameOver();
+                    }
+                    yield return null;
+                    break;
+                case "howto":         // howto 0|1 — V4: карточка «Как играть» (для uishot)
+                    MotelHud.ShowHowTo = F(s, 1) > 0f; MotelHud.ShotKeep = true;
+                    yield return null;
+                    break;
+                case "phase":         // phase lobby|play — V4: вернуть лобби / снова смена (для кадров лобби)
+                    if (GameState.Instance != null) GameState.Instance.Phase.Value = s.Length > 1 && s[1] == "lobby" ? GamePhase.Lobby : GamePhase.Playing;
                     yield return null;
                     break;
                 case "toggle":
@@ -478,7 +492,7 @@ namespace Friendslop
                     list.Add(new[] { "shot", p.name, p.pos.x.ToString(CI), p.pos.y.ToString(CI), p.pos.z.ToString(CI), p.look.x.ToString(CI), p.look.y.ToString(CI), p.look.z.ToString(CI), p.fov.ToString(CI) });
                 return list;
             }
-            var known = new HashSet<string> { "shot", "shotfp", "wait", "spawner", "guest", "clearguests", "held", "view", "player", "knock", "swing", "item", "clearitems", "moon", "toggle", "handpose", "slab", "room", "handaim", "guestlive", "cam", "uishot", "uishotfp", "hl", "fx", "taxdue", "gameover", "daynight", "buy", "money", "shop", "drink", "toilet" };
+            var known = new HashSet<string> { "shot", "shotfp", "wait", "spawner", "guest", "clearguests", "held", "view", "player", "knock", "swing", "item", "clearitems", "moon", "toggle", "handpose", "slab", "room", "handaim", "guestlive", "cam", "uishot", "uishotfp", "hl", "fx", "taxdue", "gameover", "daynight", "buy", "money", "shop", "drink", "toilet", "howto", "phase" };
             foreach (var raw in File.ReadAllLines(file))
             {
                 var line = raw.Trim();
