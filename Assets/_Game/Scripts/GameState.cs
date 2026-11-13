@@ -26,7 +26,7 @@ namespace Friendslop
         static readonly bool FastTax = NetBootstrap.Arg("-fasttax");      // тест: день и ночь по 20 с
         static readonly bool FastDay = NetBootstrap.Arg("-fastday") || NetBootstrap.Arg("-daytest");   // тест: день 40 с, ночь 20 с
         static readonly bool SelfTest = NetBootstrap.Arg("-roomtest");
-        static readonly bool ShopFast = NetBootstrap.Arg("-shoptest");     // тест V2: кофе и сантехник — секунды, а не десятки секунд
+        static readonly bool ShopFast = NetBootstrap.Arg("-shoptest") || NetBootstrap.Arg("-toilettest");     // тест V2: кофе и сантехник — секунды, а не десятки секунд
 
         public GameConfig config;
 
@@ -182,6 +182,7 @@ namespace Friendslop
             ShiftStart.Value = Now;
             PhaseEnd.Value = Now + DayLength;
             Room.ServerResetAll(config.roomsStartDirty);
+            if (Toilet.Instance != null) Toilet.Instance.ServerReset();
             Debug.Log($"[DAY] shift begins: day 1, money={Money.Value}, night in {DayLength:0}s, tax {TaxAmount} $");
         }
 
@@ -252,17 +253,19 @@ namespace Friendslop
                 case ShopItem.Annex: return $"открывает {config.annexRooms} закрытых номеров (больше работы и дохода)";
                 case ShopItem.Plunger: return $"вантуз на складе: прочистить засор — ЛКМ {config.plungeTime:0} с в номере";
                 case ShopItem.Bulbs: return "стеллаж лампочек на складе: вкрутить в номер — E у лампы";
-                default: return $"засор в номере починят через {PlumberSeconds:0} с, пока ты занят другим";
+                default: return $"засор (в номере или туалете) починят через {PlumberSeconds:0} с, пока ты занят другим";
             }
         }
 
-        /// <summary>Номер с засором, которому ещё не вызван сантехник (null — нет).</summary>
-        public static Room ClogWithoutPlumber()
+        /// <summary>Место с засором, которому ещё не вызван сантехник: сначала номера по порядку, потом общий туалет (null — нет).</summary>
+        public static DirtySite ClogWithoutPlumber()
         {
             Room best = null;
             foreach (var r in Room.All)
                 if (!r.Locked && r.HasClog && !r.PlumberPending && (best == null || r.index < best.index)) best = r;
-            return best;
+            if (best != null) return best;
+            var t = Toilet.Instance;
+            return t != null && t.IsSpawned && t.HasClog && !t.PlumberPending ? t : null;
         }
 
         /// <summary>Почему сейчас нельзя купить ("" — можно). Для меню и сервера.</summary>
@@ -286,15 +289,15 @@ namespace Friendslop
             string block = ShopBlock(item);
             if (block != "") { Debug.Log($"[SHOP] {nick}: cannot buy {item}: {block} (money={Money.Value})"); return false; }
             int price = Price(item);
-            Room plumberRoom = item == ShopItem.Plumber ? ClogWithoutPlumber() : null;
+            DirtySite plumberRoom = item == ShopItem.Plumber ? ClogWithoutPlumber() : null;
             if (item == ShopItem.Plumber && (plumberRoom == null || !plumberRoom.ServerCallPlumber())) return false;
             Money.Value -= price;
             var map = MotelMap.Instance;
             MoneyFxRpc(-price, map != null && map.shopTerminal != null ? map.shopTerminal.position + Vector3.up * 1.7f : CashPos());
             if (item == ShopItem.Annex) RoomCount.Value = Mathf.Min(config.bigRooms, RoomCount.Value + config.annexRooms);
             if (UpgradeBit(item) != 0) Upgrades.Value |= UpgradeBit(item);
-            Debug.Log($"[SHOP] {nick} bought {item} for {price} $, money={Money.Value}" + (item == ShopItem.Annex ? $", rooms={RoomCount.Value}" : "") + (plumberRoom != null ? $", plumber -> room {plumberRoom.index}" : ""));
-            ShopFeedRpc(nick, (byte)item, plumberRoom != null ? plumberRoom.index : 0);
+            Debug.Log($"[SHOP] {nick} bought {item} for {price} $, money={Money.Value}" + (item == ShopItem.Annex ? $", rooms={RoomCount.Value}" : "") + (plumberRoom != null ? $", plumber -> {plumberRoom.SiteName}" : ""));
+            ShopFeedRpc(nick, (byte)item, plumberRoom is Room pr ? pr.index : 0);
             return true;
         }
 
@@ -302,7 +305,7 @@ namespace Friendslop
         void ShopFeedRpc(string nick, byte item, int room)
         {
             var it = (ShopItem)item;
-            MotelHud.Toast(nick + (it == ShopItem.Plumber ? $" вызвал сантехника в номер {room}" : " купил: " + ShopName(it)));
+            MotelHud.Toast(nick + (it == ShopItem.Plumber ? (room > 0 ? $" вызвал сантехника в номер {room}" : " вызвал сантехника в туалет") : " купил: " + ShopName(it)));
             Sfx.Play2D(Snd.Bell, 0.6f);
         }
 

@@ -77,6 +77,13 @@ MonoBehaviour:
   lampFromDay: 3
   lampChance: 0.2
   lampPenalty: 20
+  toiletDirtyMin: 60
+  toiletDirtyMax: 90
+  toiletClogFromDay: 2
+  toiletClogChance: 0.35
+  toiletPatienceMul: 1.5
+  wakeInvuln: 0.5
+  boardRefresh: 0.25
   moveSpeed: 5
   runMultiplier: 1.6
   mouseSensitivity: 0.12

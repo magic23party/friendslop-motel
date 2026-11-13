@@ -294,7 +294,7 @@ namespace Friendslop.EditorTools
 
             // --- ресепшен
             var desk = Prim(PrimitiveType.Cube, "ReceptionDesk", root, new Vector3(0, 0.55f, -13f), new Vector3(8f, 1.1f, 1.2f), Mat("Desk", Palette.WoodLight));
-            Label(root, "РЕСЕПШЕН", new Vector3(0, 2.45f, -13.08f), Vector3.back, 0.48f, white, "Label_Reception");
+            Label(root, "РЕСЕПШЕН", new Vector3(0, 2.63f, -13.08f), Vector3.back, 0.34f, white, "Label_Reception");
             map.receptionDesk = desk.transform;
 
             var forms = Empty("FormsStack", root, new Vector3(2.8f, 1.1f, -13f));
@@ -306,11 +306,12 @@ namespace Friendslop.EditorTools
             map.formsStack = forms.transform;
 
             // очередь гостей, вход и выход (юг лобби)
-            map.guestSpawn = Empty("GuestSpawn", root, new Vector3(3f, 0, -19f)).transform;
-            map.guestExit = Empty("GuestExit", root, new Vector3(3f, 0, -19.4f)).transform;
+            // V3: вход отодвинут к восточному краю южной стены (тамбур), от двери до стойки ~15 м пути
+            map.guestSpawn = Empty("GuestSpawn", root, new Vector3(EntranceX, 0, -18.8f)).transform;
+            map.guestExit = Empty("GuestExit", root, new Vector3(EntranceX, 0, -19.4f)).transform;
             map.queuePoints = new Transform[4];
             for (int i = 0; i < 4; i++) map.queuePoints[i] = Empty("Queue_" + i, root, new Vector3(0, 0, -14.3f - 1.1f * i)).transform;
-            Label(root, "ВХОД", new Vector3(3f, 2.5f, -19.8f), Vector3.forward, 0.5f, white, "Label_Entrance");
+            Label(root, "ВХОД", new Vector3(EntranceX, 2.5f, -19.8f), Vector3.forward, 0.5f, white, "Label_Entrance");
 
             // --- доска ключей (отдельная стенка, крючки с +Z стороны)
             BuildKeyBoard(root, map);
@@ -378,6 +379,9 @@ namespace Friendslop.EditorTools
 
             // подключаем MotelMap к KeyBoard
             map.keyBoard = root.GetComponentInChildren<KeyBoard>();
+
+            // V3: тамбур и табло входа, туалет, электронная таблица задач (в конце — чтобы не сдвинуть sceneId остальных целей)
+            BuildWorldV3(root, map, white);
         }
 
         static void BuildKeyBoard(Transform root, MotelMap map)

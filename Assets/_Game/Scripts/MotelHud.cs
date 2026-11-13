@@ -7,13 +7,12 @@ namespace Friendslop
 {
     /// <summary>
     /// IMGUI-интерфейс сцены Motel: лобби, «Начать смену», пауза по Esc, прицел и подсказка, предмет в руках,
-    /// касса/налог, список задач со значками, Game Over. Весь стиль — UiStyle (единый для меню, HUD и Game Over).
+    /// касса/налог/день, баннер, лента покупок, Game Over. Список задач здесь не рисуется (V3): он на электронной таблице за ресепшеном (TaskWall). Весь стиль — UiStyle (единый для меню, HUD и Game Over).
     /// </summary>
     public class MotelHud : MonoBehaviour
     {
         public GameConfig config;
 
-        readonly List<TaskLine> tasks = new List<TaskLine>();
         GamePhase prevPhase;
         bool daySeen, prevNight;
         int prevDay;
@@ -115,7 +114,7 @@ namespace Friendslop
                 else
                 {
                     DrawShiftPanel(gs);
-                    if (gs.Phase.Value == GamePhase.Playing) { DrawTasks(); DrawBanner(cx); DrawToasts(cx); DrawBuff(); }
+                    if (gs.Phase.Value == GamePhase.Playing) { DrawBanner(cx); DrawToasts(cx); DrawBuff(); }
                 }
             }
 
@@ -240,43 +239,6 @@ namespace Friendslop
             float total = gs.PhaseTotal;
             Color barColor = due ? alert : night ? UiStyle.Good : soon ? UiStyle.Mustard : UiStyle.Teal;
             UiStyle.Bar(new Rect(24, 108, 292, 14), playing && total > 0f ? gs.PhaseLeft / total : 0f, barColor);
-        }
-
-        void DrawTasks()
-        {
-            TaskBoard.Collect(tasks);
-            const int maxLines = 10;
-            const float iconSize = 20f, iconGap = 4f;
-            float w = 360f, x = Ui.W - w - 12f, y = 12f;
-            int shown = Mathf.Min(tasks.Count, maxLines);
-            var style = UiStyle.Label;
-            float h = 44f;
-            for (int i = 0; i < shown; i++) h += LineHeight(tasks[i], w, iconSize, iconGap, style) + 4f;
-            if (tasks.Count > shown) h += 26f;
-            if (tasks.Count == 0) h += 28f;
-            UiStyle.Plate(new Rect(x, y, w, h));
-            Ui.Shadowed(new Rect(x + 14, y + 8, w - 28, 26), $"Задачи ({tasks.Count})", UiStyle.Header, UiStyle.Mustard);
-            float cy = y + 40f;
-            for (int i = 0; i < shown; i++)
-            {
-                var t = tasks[i];
-                float lh = LineHeight(t, w, iconSize, iconGap, style);
-                float iw = t.icons != null ? t.icons.Length * (iconSize + iconGap) : 0f;
-                if (t.urgent) UiStyle.Plate(new Rect(x + 6, cy - 2, w - 12, lh + 4), UiStyle.Kind.Urgent, 0.85f);
-                Ui.Shadowed(new Rect(x + 14, cy, w - 28 - iw, lh), t.text, style, t.urgent ? new Color(1f, 0.85f, 0.8f) : Color.white);
-                if (t.icons != null)
-                    for (int k = 0; k < t.icons.Length; k++)
-                        UiStyle.ItemIcon(new Rect(x + w - 14 - iw + iconGap + k * (iconSize + iconGap), cy + (lh - iconSize) / 2f, iconSize, iconSize), t.icons[k]);
-                cy += lh + 4f;
-            }
-            if (tasks.Count > shown) Ui.Shadowed(new Rect(x + 14, cy, w - 28, 24), $"…и ещё {tasks.Count - shown}", UiStyle.Small, new Color(1, 1, 1, 0.7f));
-            else if (tasks.Count == 0) Ui.Shadowed(new Rect(x + 14, cy, w - 28, 24), "Всё чисто", style, UiStyle.Good);
-        }
-
-        static float LineHeight(TaskLine t, float w, float iconSize, float iconGap, GUIStyle style)
-        {
-            float iw = t.icons != null ? t.icons.Length * (iconSize + iconGap) : 0f;
-            return Mathf.Max(iconSize + 4f, style.CalcHeight(new GUIContent(t.text), w - 28f - iw));
         }
 
         void DrawGameOver(GameState gs, NetworkManager nm)

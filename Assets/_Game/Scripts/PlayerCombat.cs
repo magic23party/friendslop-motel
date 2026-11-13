@@ -20,6 +20,8 @@ namespace Friendslop
         const float SwingTime = 0.28f, FlashTime = 0.3f, SwingAngle0 = 75f;
 
         public NetworkVariable<bool> IsDown = new NetworkVariable<bool>(false);
+        /// <summary>V3: после пробуждения wakeInvuln секунд игрок неуязвим (защита от стан-лока); у всех он мерцает.</summary>
+        public NetworkVariable<bool> Protected = new NetworkVariable<bool>(false);
 
         PlayerHands hands;
         PlayerController pc;
@@ -28,16 +30,23 @@ namespace Friendslop
         StunStars stars;
 
         // сервер
-        float nextHitAt, downUntil, lastTakenAt;
+        float nextHitAt, downUntil, lastTakenAt, protectedUntil;
         int hitsTaken;
 
         // все машины (визуал)
         float swingT, flashT, lie, screenFlash;
+        Renderer[] flickerRenderers;
+        bool flickerHidden;
         /// <summary>Скриншоты: 0..1 — заморозить фазу взмаха, &lt;0 — обычная работа.</summary>
         public float ShotSwing = -1f;
         /// <summary>Текущий угол взмаха, градусы (для viewmodel владельца: PlayerHands).</summary>
         public float SwingAngle { get; private set; }
         static GUIStyle bigStyle;
+
+        /// <summary>Сервер: неуязвим (только что очнулся). Удар, оглушение и удары гостей не проходят.</summary>
+        public bool Invulnerable => Time.time < protectedUntil;
+        /// <summary>Сервер, для самотестов: сколько ударов/оглушений погасила неуязвимость.</summary>
+        public static int InvulnBlocks;
 
         public float HitCooldown => hands != null && hands.config != null ? hands.config.hitCooldown : 0.6f;
 
@@ -126,6 +135,7 @@ namespace Friendslop
         public bool ServerGuestHit()
         {
             if (!IsServer || !IsSpawned || IsDown.Value || hands == null) return false;
+            if (Invulnerable) { InvulnBlocks++; return false; }           // V3: только очнулся — гость бьёт впустую, счётчик ударов не растёт
             var cfg = hands.config;
             if (Time.time - lastTakenAt > cfg.playerHitForget) hitsTaken = 0;
             lastTakenAt = Time.time;
@@ -141,6 +151,7 @@ namespace Friendslop
         public void ServerKnockOut(float seconds)
         {
             if (!IsServer || !IsSpawned || IsDown.Value) return;
+            if (Invulnerable) { InvulnBlocks++; Debug.Log($"[FIGHT] {name} is invulnerable after waking up, knock-out ignored"); return; }
             hitsTaken = 0;
             downUntil = Time.time + seconds;
             IsDown.Value = true;
@@ -201,9 +212,12 @@ namespace Friendslop
             if (!IsSpawned) return;
             if (IsServer && IsDown.Value && Time.time >= downUntil)
             {
+                float inv = hands != null && hands.config != null ? hands.config.wakeInvuln : 0.5f;
                 IsDown.Value = false;
-                Debug.Log($"[FIGHT] {name} regained consciousness");
+                if (inv > 0f) { protectedUntil = Time.time + inv; Protected.Value = true; }
+                Debug.Log($"[FIGHT] {name} regained consciousness, invulnerable for {inv:0.##}s");
             }
+            if (IsServer && Protected.Value && Time.time >= protectedUntil) Protected.Value = false;
             if (!IsOwner || pc == null || hands == null || !pc.Placed || pc.MenuOpen || IsDown.Value) return;
             bool pressed = TestFire;        // -hammertest: «нажатая ЛКМ» без мыши, дальше тот же путь, что у живого ввода
             if (!pressed)
@@ -248,6 +262,18 @@ namespace Friendslop
             }
             if (screenFlash > 0f) screenFlash = Mathf.Max(0f, screenFlash - dt);
 
+            // V3: мерцание неуязвимого (у владельца тела от первого лица нет — у него лёгкая вспышка экрана в OnGUI)
+            if (humanoid != null && !IsOwner)
+            {
+                bool flick = Protected.Value && !IsDown.Value;
+                if (flick || flickerHidden)
+                {
+                    if (flickerRenderers == null) flickerRenderers = humanoid.GetComponentsInChildren<Renderer>(true);
+                    bool show = !flick || (Mathf.FloorToInt(Time.time * 16f) & 1) == 0;
+                    if (show == flickerHidden) { foreach (var r in flickerRenderers) if (r != null) r.enabled = show; flickerHidden = !show; }
+                }
+            }
+
             // «звёздочки» над оглушённым (видны всем: IsDown — NetworkVariable)
             if (stars == null && IsDown.Value) stars = StunStars.Attach(transform);
             if (stars != null) stars.Tick(IsDown.Value, lie, dt);
@@ -257,9 +283,17 @@ namespace Friendslop
         {
             if (!IsSpawned || !IsOwner) return;
             bool down = IsDown.Value;
-            if (screenFlash <= 0f && !down) return;
+            bool prot = Protected.Value && !down;
+            if (screenFlash <= 0f && !down && !prot) return;
             Ui.Begin();
             var full = new Rect(0, 0, Ui.W, Ui.H);
+            if (prot)
+            {
+                var oldc = GUI.color;
+                GUI.color = new Color(1f, 1f, 1f, 0.05f + 0.07f * (0.5f + 0.5f * Mathf.Sin(Time.time * 28f)));
+                GUI.DrawTexture(full, Texture2D.whiteTexture);
+                GUI.color = oldc;
+            }
             if (screenFlash > 0f)
             {
                 var old = GUI.color;

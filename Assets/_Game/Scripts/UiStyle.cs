@@ -224,7 +224,7 @@ namespace Friendslop
             }
         }
 
-        static string ItemGlyph(ItemType t)
+        public static string ItemGlyph(ItemType t)
         {
             switch (t)
             {

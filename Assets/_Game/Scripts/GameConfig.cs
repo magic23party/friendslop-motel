@@ -83,6 +83,14 @@ namespace Friendslop
         [Range(0f, 1f)] public float lampChance = 0.2f;
         public int lampPenalty = 20;          // гость в номере с перегоревшей лампой платит на столько меньше
 
+        [Header("Мир (V3): туалет, табло, защита от стан-лока")]
+        public float toiletDirtyMin = 60f, toiletDirtyMax = 90f;   // чистый туалет пачкается через столько секунд
+        public int toiletClogFromDay = 2;     // со 2-го дня при загрязнении может быть ещё и засор
+        [Range(0f, 1f)] public float toiletClogChance = 0.35f;
+        public float toiletPatienceMul = 1.5f;// пока туалет грязный/засорён, терпение гостей у стойки тает во столько раз быстрее
+        public float wakeInvuln = 0.5f;       // после пробуждения игрок неуязвим столько секунд (ни гость, ни коллега не оглушат)
+        public float boardRefresh = 0.25f;    // табло и электронная таблица обновляются не чаще, чем раз в N с
+
         [Header("Игрок / взаимодействие")]
         public float moveSpeed = 5f;
         public float runMultiplier = 1.6f;

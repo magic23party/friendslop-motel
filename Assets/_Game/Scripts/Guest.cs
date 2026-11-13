@@ -33,7 +33,7 @@ namespace Friendslop
         public static readonly List<Guest> All = new List<Guest>();
 
         /// <summary>Самотест -guesttest: все интервалы короче в 10 раз, гости бегают втрое быстрее.</summary>
-        public static readonly bool Fast = NetBootstrap.Arg("-guesttest") || NetBootstrap.Arg("-fighttest") || NetBootstrap.Arg("-hammertest") || NetBootstrap.Arg("-shoptest");
+        public static readonly bool Fast = NetBootstrap.Arg("-guesttest") || NetBootstrap.Arg("-fighttest") || NetBootstrap.Arg("-hammertest") || NetBootstrap.Arg("-shoptest") || NetBootstrap.Arg("-toilettest");
         public static float TimeScale => Fast ? 10f : 1f;
 
         /// <summary>Счётчики для лога [STATS] (сервер): пришло / заселено / выехало и заплатило / ушло из мотеля.</summary>
@@ -220,6 +220,16 @@ namespace Friendslop
                 || s == GuestState.WaitKey || s == GuestState.ToDesk || s == GuestState.WaitCheckOut;
         }
 
+        static bool WaitsAtDesk(GuestState s) { return s == GuestState.WaitForm || s == GuestState.WaitKey || s == GuestState.WaitCheckOut; }
+
+        /// <summary>Сколько гостей сейчас ждут у стойки (бланк, ключ, выписка): их терпение тает, пока туалет грязный.</summary>
+        public static int WaitingCount()
+        {
+            int n = 0;
+            foreach (var g in All) if (g != null && g.IsSpawned && WaitsAtDesk(g.State.Value)) n++;
+            return n;
+        }
+
         /// <summary>Сколько гостей сейчас занимают места у стойки (спавнер не спавнит выше числа точек).</summary>
         public static int QueueCount()
         {
@@ -280,6 +290,22 @@ namespace Friendslop
 
         double Wait(float seconds) => Gs.Now + seconds / TimeScale;
 
+        float patienceDebt;
+
+        /// <summary>
+        /// V3: пока туалет грязный/засорён, терпение у стойки тает в toiletPatienceMul раз быстрее: дедлайн (Until) подтягивается к «сейчас»
+        /// на (mul-1)*dt. Двигаем пачками по 0,25 с, чтобы не слать NetworkVariable каждый кадр.
+        /// </summary>
+        void ToiletDrain(GuestState s)
+        {
+            float mul = Toilet.PatienceMul;
+            if (mul <= 1f || !WaitsAtDesk(s)) { patienceDebt = 0f; return; }
+            patienceDebt += Time.deltaTime * (mul - 1f);
+            if (patienceDebt < 0.25f) return;
+            Until.Value -= patienceDebt;
+            patienceDebt = 0f;
+        }
+
         // ------------------------------------------------------------ сервер: тик
 
         void Update()
@@ -301,6 +327,7 @@ namespace Friendslop
             if (agent.enabled && agent.isOnNavMesh && agent.isStopped && agent.hasPath) agent.isStopped = false;
 
             if (aggroTarget != null && TickAggro(gs.Now)) return;      // ударенный гость гонится за обидчиком, остальное ждёт
+            ToiletDrain(State.Value);
 
             double now = gs.Now;
             var s = State.Value;

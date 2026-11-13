@@ -27,6 +27,7 @@ namespace Friendslop
     ///   swing 0..1 | swing -1               заморозить фазу взмаха (для fp-кадра)
     ///   item Тип arg x y z yaw [pitch roll]  предмет на полу (неподвижный)
     ///   room N ready|occupied|needs [маска] [stain] [clog] [lamp]|lamp  состояние номера (таблички); lamp — только перегоревшая лампа
+    ///   toilet clean|stain|clog|both        V3: состояние общего туалета
     ///   buy Cart|Coffee|Annex|Plunger|Bulbs  V2: купить товар (касса пополняется сама)
     ///   money N                             V2: касса = N
     ///   shop 0|1                            V2: показать меню магазина (для uishot)
@@ -105,6 +106,7 @@ namespace Friendslop
             if (PlayerController.Local == null || GameState.Instance == null) { Fail("no player/state after 40 s"); yield break; }
 
             GameState.Instance.StartShift();
+            Toilet.AutoOverride = false;                 // V3: туалет пачкается только командой toilet
             var hud = FindAnyObjectByType<MotelHud>();
             if (hud != null) hud.enabled = false;
             pl = PlayerController.Local;
@@ -277,6 +279,14 @@ namespace Friendslop
                         else if (st == "lamp") r.ServerBreakLamp();
                         else r.ServerSetReady();
                     }
+                    yield return null;
+                    break;
+                }
+                case "toilet":        // toilet clean|stain|clog|both — V3: состояние общего туалета (вывеска, пятно, лужа, задача на таблице)
+                {
+                    var wc = Toilet.Instance;
+                    string st = s.Length > 1 ? s[1] : "clean";
+                    if (wc != null) wc.ServerSetDirty(st == "stain" || st == "both", st == "clog" || st == "both");
                     yield return null;
                     break;
                 }
@@ -468,7 +478,7 @@ namespace Friendslop
                     list.Add(new[] { "shot", p.name, p.pos.x.ToString(CI), p.pos.y.ToString(CI), p.pos.z.ToString(CI), p.look.x.ToString(CI), p.look.y.ToString(CI), p.look.z.ToString(CI), p.fov.ToString(CI) });
                 return list;
             }
-            var known = new HashSet<string> { "shot", "shotfp", "wait", "spawner", "guest", "clearguests", "held", "view", "player", "knock", "swing", "item", "clearitems", "moon", "toggle", "handpose", "slab", "room", "handaim", "guestlive", "cam", "uishot", "uishotfp", "hl", "fx", "taxdue", "gameover", "daynight", "buy", "money", "shop", "drink" };
+            var known = new HashSet<string> { "shot", "shotfp", "wait", "spawner", "guest", "clearguests", "held", "view", "player", "knock", "swing", "item", "clearitems", "moon", "toggle", "handpose", "slab", "room", "handaim", "guestlive", "cam", "uishot", "uishotfp", "hl", "fx", "taxdue", "gameover", "daynight", "buy", "money", "shop", "drink", "toilet" };
             foreach (var raw in File.ReadAllLines(file))
             {
                 var line = raw.Trim();

@@ -13,7 +13,7 @@ namespace Friendslop
     /// Локальные оси: +Z — вглубь номера, дверной проём на z=0 (лицом в коридор).
     /// Серверный API для гостей (C4): PickReady / ServerSetOccupied / ServerSetNeedsService.
     /// </summary>
-    public class Room : NetworkBehaviour
+    public class Room : DirtySite
     {
         public static readonly List<Room> All = new List<Room>();
 
@@ -29,15 +29,11 @@ namespace Friendslop
         public Transform inside;          // точка в номере у двери (куда идёт гость)
         public Transform bed;             // кровать (цель для гостя и для заноса)
         public Transform stainPoint;      // место пятна
-        public GameObject stainVisual;    // пятно (показывается, пока HasStain)
         public Transform[] supplyPoints;  // точки под расходники: 0 полотенце, 1 мыло, 2 салфетки
         public GameObject[] supplyStock;  // предметы на этих точках (видны, если расходник на месте)
-        public RoomSpot stainSpot;        // цель для швабры
         public TextMesh signNumber;       // табличка над дверью: номер
         public TextMesh signStatus;       // табличка: статус / список нужного (текст остаётся для самотестов; при «нужно» вместо него рисуются значки)
         public GameObject[] signIcons;    // значки на табличке: 0 полотенце, 1 мыло, 2 салфетки, 3 грязь, 4 засор (V2), 5 перегоревшая лампа (V2; виден и в Ready/Occupied)
-        public GameObject clogVisual;     // V2: лужа засора (показывается, пока HasClog)
-        public RoomSpot clogSpot;         // V2: цель для вантуза
         public RoomSpot lampSpot;         // V2: прикроватная лампа — цель для лампочки
         public GameObject lampOn, lampOff;// V2: абажур горит / перегорел
         public GameObject blocker;        // стена-заглушка в проёме, если номер закрыт
@@ -45,30 +41,20 @@ namespace Friendslop
         public NetworkVariable<byte> StateVar = new NetworkVariable<byte>((byte)RoomState.Ready);
         /// <summary>Бит i = расходник SupplyTypes[i] ещё надо занести.</summary>
         public NetworkVariable<byte> MissingVar = new NetworkVariable<byte>(0);
-        public NetworkVariable<bool> StainVar = new NetworkVariable<bool>(false);
-        /// <summary>Прогресс мытья пятна, 0..100.</summary>
-        public NetworkVariable<byte> MopPct = new NetworkVariable<byte>(0);
-        /// <summary>V2 «Засор»: номер нельзя выдать, пока не прочищен (NeedsService).</summary>
-        public NetworkVariable<bool> ClogVar = new NetworkVariable<bool>(false);
         /// <summary>V2 «Лампа»: переживает заселение; номер можно сдать, но гость платит на lampPenalty меньше.</summary>
         public NetworkVariable<bool> LampVar = new NetworkVariable<bool>(false);
-        /// <summary>Прогресс прочистки засора вантузом, 0..100.</summary>
-        public NetworkVariable<byte> PlungePct = new NetworkVariable<byte>(0);
-        /// <summary>Когда сантехник закончит (ServerTime); 0 — не вызван.</summary>
-        public NetworkVariable<double> PlumberEnd = new NetworkVariable<double>(0);
 
         public RoomState State => (RoomState)StateVar.Value;
         public int Missing => MissingVar.Value;
-        public bool HasStain => StainVar.Value;
-        public bool HasClog => ClogVar.Value;
         public bool LampBroken => LampVar.Value;
-        public bool PlumberPending => PlumberEnd.Value > 0;
         public bool Needs(int supplyIndex) => (MissingVar.Value & (1 << supplyIndex)) != 0;
         public bool Locked => !IsActive(index);
         /// <summary>Номер открыт, чистый и готов принять гостя (ключ на доске проверяет вызывающий).</summary>
         public bool IsReady => !Locked && State == RoomState.Ready;
 
-        float mopProgress, plungeProgress;
+        public override string SiteName => "Номер " + index;
+        public override bool CanClean => State == RoomState.NeedsService;
+
         int lastKey = -1;
         Vector3 signStatusBase;
         bool signStatusBaseSet;
@@ -131,8 +117,6 @@ namespace Friendslop
 
         // ------------------------------------------------------------ сервер: API для гостей (C4) и тестов
 
-        GameConfig Cfg => GameState.Instance != null ? GameState.Instance.config : null;
-
         /// <summary>Сервер: случайный номер, готовый принять гостя (открыт, Ready, ключ висит на доске, если board задан). null — нет.</summary>
         public static Room PickReady(KeyBoard board = null)
         {
@@ -194,9 +178,7 @@ namespace Friendslop
         void ServerSetState(RoomState s, int mask, bool stain, bool clog, bool lamp)
         {
             if (!IsServer || !IsSpawned) return;
-            mopProgress = 0f; plungeProgress = 0f;
-            MopPct.Value = 0; PlungePct.Value = 0;
-            PlumberEnd.Value = 0;
+            ResetMessProgress();
             MissingVar.Value = (byte)mask;
             StainVar.Value = stain;
             ClogVar.Value = clog;
@@ -217,45 +199,6 @@ namespace Friendslop
             return true;
         }
 
-        /// <summary>Сервер: вантуз прочищает засор dt секунд. true — засор прочищен.</summary>
-        public bool ServerPlunge(float dt)
-        {
-            if (!IsServer || !HasClog) return false;
-            var cfg = Cfg;
-            float need = cfg != null ? cfg.plungeTime : 3f;
-            plungeProgress += dt;
-            if (plungeProgress >= need) { ClearClog("plunger"); return true; }
-            PlungePct.Value = (byte)Mathf.Clamp(Mathf.FloorToInt(plungeProgress / need * 100f), 0, 99);
-            return false;
-        }
-
-        public void ServerPlungeReset()
-        {
-            if (!IsServer) return;
-            plungeProgress = 0f;
-            if (PlungePct.Value != 0) PlungePct.Value = 0;
-        }
-
-        /// <summary>Сервер: сантехник вызван (деньги списывает GameState). false — нет засора или уже вызван.</summary>
-        public bool ServerCallPlumber()
-        {
-            var gs = GameState.Instance;
-            if (!IsServer || !HasClog || PlumberPending || gs == null) return false;
-            PlumberEnd.Value = gs.Now + gs.PlumberSeconds;
-            Debug.Log($"[ROOM] {index} plumber called, done in {gs.PlumberSeconds:0}s");
-            return true;
-        }
-
-        void ClearClog(string by)
-        {
-            plungeProgress = 0f;
-            PlungePct.Value = 0;
-            PlumberEnd.Value = 0;
-            ClogVar.Value = false;
-            Debug.Log($"[ROOM] {index} clog cleared by {by}");
-            CheckDone();
-        }
-
         /// <summary>Сервер: занести расходник. true — принят (из рук надо убрать), false — не нужен.</summary>
         public bool ServerDeliver(ItemType t)
         {
@@ -267,33 +210,7 @@ namespace Friendslop
             return true;
         }
 
-        /// <summary>Сервер: швабра трёт пятно dt секунд. Возвращает true, когда пятно смыто.</summary>
-        public bool ServerMop(float dt)
-        {
-            if (!IsServer || State != RoomState.NeedsService || !HasStain) return false;
-            var cfg = Cfg;
-            float need = cfg != null ? cfg.mopTime : 3f;
-            mopProgress += dt;
-            if (mopProgress >= need)
-            {
-                mopProgress = 0f;
-                MopPct.Value = 0;
-                StainVar.Value = false;
-                Debug.Log($"[ROOM] {index} stain cleaned");
-                CheckDone();
-                return true;
-            }
-            MopPct.Value = (byte)Mathf.Clamp(Mathf.FloorToInt(mopProgress / need * 100f), 0, 99);
-            return false;
-        }
-
-        /// <summary>Сервер: швабру убрали (отпустили ЛКМ / отошли) — прогресс сбрасывается.</summary>
-        public void ServerMopReset()
-        {
-            if (!IsServer) return;
-            mopProgress = 0f;
-            if (MopPct.Value != 0) MopPct.Value = 0;
-        }
+        protected override void OnMessCleared() { CheckDone(); }
 
         void CheckDone()
         {
@@ -315,38 +232,7 @@ namespace Friendslop
             RefreshView(locked);
         }
 
-        void ServerTick()
-        {
-            var gs = GameState.Instance;
-            if (HasClog && PlumberEnd.Value > 0 && gs != null && gs.Now >= PlumberEnd.Value) ClearClog("plumber");   // V2: сантехник доделал
-            if (State != RoomState.NeedsService) return;
-            var cfg = Cfg;
-            float reach = cfg != null ? cfg.interactDistance + cfg.interactReachSlack : 4f;
-            if (HasStain && stainSpot != null)
-            {
-                bool mopping = Holding(ItemType.Mop, stainSpot, reach);
-                if (mopping) ServerMop(Time.deltaTime);
-                else if (mopProgress > 0f) ServerMopReset();
-            }
-            if (HasClog && clogSpot != null)
-            {
-                bool plunging = Holding(ItemType.Plunger, clogSpot, reach);
-                if (plunging) ServerPlunge(Time.deltaTime);
-                else if (plungeProgress > 0f) ServerPlungeReset();
-            }
-        }
-
-        /// <summary>Сервер: кто-то держит ЛКМ с предметом type на цели spot и достаёт до неё.</summary>
-        static bool Holding(ItemType type, RoomSpot spot, float reach)
-        {
-            foreach (var h in PlayerHands.All)
-            {
-                if (!h.UseDown || h.Held.Value.type != type || !ReferenceEquals(h.UseTarget, spot)) continue;
-                if (Interact.Distance(spot, h.Eye) > reach) continue;
-                return true;
-            }
-            return false;
-        }
+        void ServerTick() { ServerTickMess(); }
 
         void RefreshView(bool locked)
         {
@@ -355,21 +241,10 @@ namespace Friendslop
             if (key == lastKey) return;
             lastKey = key;
 
-            if (stainVisual != null)
-            {
-                if (stainVisual.activeSelf != HasStain) stainVisual.SetActive(HasStain);
-                float s = Mathf.Lerp(1f, 0.35f, MopPct.Value / 100f);
-                stainVisual.transform.localScale = new Vector3(s, 0.01f, s);
-            }
+            RefreshMessVisuals();
             if (supplyStock != null)
                 for (int i = 0; i < supplyStock.Length; i++)
                     if (supplyStock[i] != null) supplyStock[i].SetActive(!Needs(i));
-            if (clogVisual != null)
-            {
-                if (clogVisual.activeSelf != HasClog) clogVisual.SetActive(HasClog);
-                float cs = Mathf.Lerp(1f, 0.4f, PlungePct.Value / 100f);
-                clogVisual.transform.localScale = new Vector3(cs, 1f, cs);
-            }
             if (lampOn != null && lampOn.activeSelf == LampBroken) lampOn.SetActive(!LampBroken);
             if (lampOff != null && lampOff.activeSelf != LampBroken) lampOff.SetActive(LampBroken);
 

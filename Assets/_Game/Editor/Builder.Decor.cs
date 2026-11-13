@@ -248,7 +248,7 @@ namespace Friendslop.EditorTools
             // окна: изнутри — холодная ночь, снаружи — тёплый свет интерьера
             var night = MatE("PaneNight", new Color(0.05f, 0.09f, 0.20f), new Color(0.07f, 0.14f, 0.34f), 1.1f);
             var warm = MatE("PaneWarm", new Color(1f, 0.75f, 0.40f), new Color(1f, 0.68f, 0.30f), 1.1f);
-            foreach (float x in new[] { -14f, -8f, 9f, 15f })
+            foreach (float x in new[] { -14f, -8f, 9f })      // V3: на месте окна x=15 — табло номеров на фасаде
             {
                 Window(r, new Vector3(x, 1.75f, -20.0f), 0f, 1.6f, 1.2f, night, true);
                 Window(r, new Vector3(x, 1.75f, -20.2f), 180f, 1.6f, 1.2f, warm, false);
@@ -310,7 +310,7 @@ namespace Friendslop.EditorTools
             Plant(r, new Vector3(-18.9f, 0, -18.9f), 1.3f);
             Plant(r, new Vector3(18.8f, 0, 3.8f), 1.2f);
             Plant(r, new Vector3(-18.9f, 0, 3.6f), 1.2f);
-            Plant(r, new Vector3(9.5f, 0, -18.9f), 1.0f);
+            Plant(r, new Vector3(18.9f, 0, -19.0f), 1.0f);       // V3: переехало из-под табло номеров у входа
 
             // автомат с напитками в западном проходе (единственный декор с коллайдером — простой бокс у стены)
             VendingMachine(r, new Vector3(-19.6f, 0, 12.5f));       // P4: боковой проход закрыт, автомат переехал в западный конец коридора
@@ -383,10 +383,10 @@ namespace Friendslop.EditorTools
 
             // табличка над стойкой (читается с юга, от очереди)
             var plate = Mat("SignWood", Palette.WoodDark);
-            Box(r, "SignFrame", new Vector3(0, 2.45f, -13.0f), new Vector3(3.8f, 0.8f, 0.08f), plate);
-            Box(r, "SignFace", new Vector3(0, 2.45f, -13.05f), new Vector3(3.6f, 0.64f, 0.03f), Mat("SignFace", Palette.TealDark));
-            Cyl(r, "Rod1", new Vector3(-1.5f, 2.9f, -13f), 0.03f, 0.25f, plate);
-            Cyl(r, "Rod2", new Vector3(1.5f, 2.9f, -13f), 0.03f, 0.25f, plate);
+            Box(r, "SignFrame", new Vector3(0, 2.63f, -13.0f), new Vector3(3.2f, 0.52f, 0.08f), plate);      // V3: табличка поднята и уже — не закрывает электронную таблицу на стене за стойкой
+            Box(r, "SignFace", new Vector3(0, 2.63f, -13.05f), new Vector3(3.0f, 0.44f, 0.03f), Mat("SignFace", Palette.TealDark));
+            Cyl(r, "Rod1", new Vector3(-1.3f, 2.95f, -13f), 0.03f, 0.14f, plate);
+            Cyl(r, "Rod2", new Vector3(1.3f, 2.95f, -13f), 0.03f, 0.14f, plate);
 
             // доска ключей: рама и стойки
             var wood = Mat("BoardFrame", Palette.WoodDark);
@@ -396,7 +396,7 @@ namespace Friendslop.EditorTools
             Box(r, "BoardBottom", new Vector3(0, 0.34f, -10f), new Vector3(11.2f, 0.12f, 0.22f), wood);
 
             // табличка у входа и налоговый терминал
-            Box(r, "EntranceSign", new Vector3(3f, 2.5f, -19.96f), new Vector3(2.3f, 0.6f, 0.04f), Mat("EntranceSign", Palette.TealDark));
+            Box(r, "EntranceSign", new Vector3(EntranceX, 2.5f, -19.96f), new Vector3(2.3f, 0.6f, 0.04f), Mat("EntranceSign", Palette.TealDark));
             Box(r, "TaxCap", new Vector3(-19.3f, 1.3f, -10f), new Vector3(0.74f, 0.08f, 1.04f), Mat("TaxCap", Palette.Mustard));
             Box(r, "TaxPlate", new Vector3(-19.93f, 2.0f, -10f), new Vector3(0.05f, 0.5f, 1.8f), Mat("TaxPlate", Palette.DarkRed));
             Box(r, "StoragePlate", new Vector3(19.93f, 2.7f, -11.75f), new Vector3(0.05f, 0.5f, 3.4f), Mat("StoragePlate", Palette.TealDark));
@@ -559,7 +559,7 @@ namespace Friendslop.EditorTools
             Box(o, "Ground", new Vector3(0, -0.16f, 0), new Vector3(240f, 0.3f, 240f), Mat("Grass", Palette.Grass));
             Box(o, "Lot", new Vector3(0, 0.0f, -41f), new Vector3(90f, 0.012f, 42f), Mat("Asphalt", Palette.Asphalt));
             Box(o, "Sidewalk", new Vector3(0, 0.03f, -21.4f), new Vector3(44f, 0.07f, 2.4f), Mat("Sidewalk", Palette.Concrete));
-            Box(o, "WalkPath", new Vector3(3f, 0.025f, -23.4f), new Vector3(3.0f, 0.06f, 2.0f), Mat("Sidewalk", Palette.Concrete));
+            Box(o, "WalkPath", new Vector3(EntranceX, 0.025f, -23.4f), new Vector3(3.0f, 0.06f, 2.0f), Mat("Sidewalk", Palette.Concrete));
             Box(o, "Road", new Vector3(0, 0.0f, -64f), new Vector3(240f, 0.014f, 9f), Mat("Road", Palette.Asphalt * 0.8f));
             var lineMat = Mat("StallLine", new Color(0.85f, 0.82f, 0.62f));
             foreach (float x in new[] { -18f, -14.8f, -11.6f, -8.4f, -5.2f, -2f, 8f, 11.2f, 14.4f, 17.6f })
@@ -581,14 +581,14 @@ namespace Friendslop.EditorTools
 
             var doorFrame = Mat("DoorFrame", Palette.WoodDark);
             var glass = MatE("DoorGlass", new Color(1f, 0.75f, 0.40f), new Color(1f, 0.68f, 0.30f), 1.1f);
-            Box(o, "DoorGlassL", new Vector3(2.25f, 1.1f, -20.23f), new Vector3(1.0f, 2.1f, 0.03f), glass);
-            Box(o, "DoorGlassR", new Vector3(3.75f, 1.1f, -20.23f), new Vector3(1.0f, 2.1f, 0.03f), glass);
-            Box(o, "DoorMid", new Vector3(3f, 1.1f, -20.26f), new Vector3(0.08f, 2.2f, 0.08f), doorFrame);
-            Box(o, "DoorTop", new Vector3(3f, 2.2f, -20.26f), new Vector3(2.4f, 0.1f, 0.1f), doorFrame);
-            Box(o, "DoorJambL", new Vector3(1.72f, 1.1f, -20.26f), new Vector3(0.1f, 2.2f, 0.1f), doorFrame);
-            Box(o, "DoorJambR", new Vector3(4.28f, 1.1f, -20.26f), new Vector3(0.1f, 2.2f, 0.1f), doorFrame);
+            Box(o, "DoorGlassL", new Vector3(EntranceX - 0.75f, 1.1f, -20.23f), new Vector3(1.0f, 2.1f, 0.03f), glass);
+            Box(o, "DoorGlassR", new Vector3(EntranceX + 0.75f, 1.1f, -20.23f), new Vector3(1.0f, 2.1f, 0.03f), glass);
+            Box(o, "DoorMid", new Vector3(EntranceX, 1.1f, -20.26f), new Vector3(0.08f, 2.2f, 0.08f), doorFrame);
+            Box(o, "DoorTop", new Vector3(EntranceX, 2.2f, -20.26f), new Vector3(2.4f, 0.1f, 0.1f), doorFrame);
+            Box(o, "DoorJambL", new Vector3(EntranceX - 1.28f, 1.1f, -20.26f), new Vector3(0.1f, 2.2f, 0.1f), doorFrame);
+            Box(o, "DoorJambR", new Vector3(EntranceX + 1.28f, 1.1f, -20.26f), new Vector3(0.1f, 2.2f, 0.1f), doorFrame);
             // козырёк в полоску
-            var awn = Empty("Awning", o, new Vector3(3f, 2.55f, -20.3f)).transform;
+            var awn = Empty("Awning", o, new Vector3(EntranceX, 2.55f, -20.3f)).transform;
             awn.localRotation = Quaternion.Euler(-16f, 0, 0);
             for (int i = 0; i < 6; i++)
                 Box(awn, "Stripe", new Vector3(-1.25f + 0.5f * i, 0, -0.75f), new Vector3(0.5f, 0.06f, 1.5f), Mat(i % 2 == 0 ? "AwningRed" : "AwningCream", i % 2 == 0 ? Palette.DarkRed : Palette.Cream), true);
@@ -599,7 +599,7 @@ namespace Friendslop.EditorTools
             // машины-коробки на парковке (носом к мотелю)
             Car(o, new Vector3(-13.2f, 0, -27.8f), 3f, Palette.DarkRed);
             Car(o, new Vector3(-6.8f, 0, -28.2f), -2f, Palette.Teal);
-            Car(o, new Vector3(12.8f, 0, -27.6f), 0f, Palette.Cream);
+            Car(o, new Vector3(16.0f, 0, -27.6f), 0f, Palette.Cream);
 
             // фонари: тёплый конус света на асфальт
             StreetLamp(o, new Vector3(-21f, 0, -26f), 90f);

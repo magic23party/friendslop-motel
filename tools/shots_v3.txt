@@ -1,0 +1,45 @@
+# V3: вход дальше от стойки, табло номеров, электронная таблица задач, туалет
+# запуск: powershell -ExecutionPolicy Bypass -File tools/shots.ps1 -Label v3 -ShotFile tools/shots_v3.txt
+spawner off
+view fp
+daynight day
+# состояния: номера, туалет, счёт, гости у стойки
+room 1 occupied
+room 2 needs 7 stain clog lamp
+room 3 needs 5 stain
+room 4 occupied
+room 5 needs 3
+room 6 occupied
+room 7 needs 1 stain
+room 8 ready
+room 9 needs 2
+toilet both
+taxdue 1
+guestlive
+guestlive
+wait 1.5
+# вход: гость идёт из тамбура через холл к стойке
+shot v3_entrance_walk 3 1.8 -15.2 12.2 1.2 -18.0 72
+wait 8
+shot v3_entrance_hall 7 1.9 -12.0 12.5 1.3 -18.5 70
+# табло номеров на стенке тамбура и на фасаде
+shot v3_board_lobby 5.4 1.7 -18.4 10.9 1.55 -18.4 56
+shot v3_board_lobby_6m 4.9 1.7 -17.2 10.9 1.55 -18.4 56
+shot v3_board_street 16.4 1.7 -26.2 16.4 1.6 -20.3 55
+shot v3_door_outside 7.5 1.8 -29 12.5 1.4 -20.3 62
+# электронная таблица за ресепшеном (с 5-6 м от стены)
+shot v3_taskwall_6m -2.6 1.7 -16.2 0 1.95 -10.1 62
+shot v3_taskwall_5m 3.0 1.7 -15.3 0 1.95 -10.1 62
+# туалет: вывеска из холла, интерьер с пятном и засором
+shot v3_toilet_door -11 1.7 -10.8 -11 1.7 -15.5 66
+shot v3_toilet_inside -9.6 1.9 -16.2 -11.4 0.6 -18.9 88
+toilet stain
+shot v3_toilet_stain -9.6 1.9 -16.2 -10.2 0.3 -17.6 88
+toilet clean
+shot v3_toilet_clean -11 1.7 -10.8 -11 1.7 -15.5 66
+# тамбур изнутри: дверь, коврик, выход в холл
+shot v3_vestibule 12.5 1.7 -19.5 12.5 1.4 -14 72
+# HUD без списка задач: касса/день/налог слева, подсказка и предмет в руках остаются
+held Towel
+player 12 0 -6 227 3
+uishotfp v3_hud_no_tasklist 0.6

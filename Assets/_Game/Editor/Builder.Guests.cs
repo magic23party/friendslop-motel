@@ -98,6 +98,20 @@ namespace Friendslop.EditorTools
                     && NavMesh.CalculatePath(map.guestSpawn.position, hit.position, NavMesh.AllAreas, path) && path.status == NavMeshPathStatus.PathComplete;
                 if (!ok) { bad++; Debug.LogError("[NAVMESH] queue point " + i + " unreachable"); }
             }
+            // V3: туалет достижим от входа (игрок идёт туда пешком, гость — нет, но геометрия должна быть проходима)
+            foreach (var wc in Object.FindObjectsByType<Toilet>())
+            {
+                total++;
+                bool ok = NavMesh.SamplePosition(wc.inside.position, out var hit, 2f, NavMesh.AllAreas)
+                    && NavMesh.CalculatePath(map.guestSpawn.position, hit.position, NavMesh.AllAreas, path) && path.status == NavMeshPathStatus.PathComplete;
+                if (!ok) { bad++; Debug.LogError("[NAVMESH] toilet unreachable from entrance"); }
+                else Debug.Log($"[NAVMESH] path entrance->toilet: {PathLength(path):0.0} m");
+            }
+            // V3: путь от двери до стойки (первое место очереди) — заметный, ~10–15 м (тамбур и холл)
+            if (NavMesh.SamplePosition(map.guestSpawn.position, out var sh, 2f, NavMesh.AllAreas) && NavMesh.SamplePosition(map.queuePoints[0].position, out var dh, 2f, NavMesh.AllAreas)
+                && NavMesh.CalculatePath(sh.position, dh.position, NavMesh.AllAreas, path) && path.status == NavMeshPathStatus.PathComplete)
+                Debug.Log($"[NAVMESH] path entrance->desk: {PathLength(path):0.0} m (door x={map.guestSpawn.position.x:0.0}, straight {Vector3.Distance(sh.position, dh.position):0.0} m)");
+            else { bad++; Debug.LogError("[NAVMESH] entrance->desk path not found"); }
             // P4: длина пути гостя от стойки (очередь [0]) до номера и от входа до дальнего номера — для сравнения до/после правки прохода
             float sum = 0f, max = 0f; int maxRoom = 0, cnt = 0;
             if (NavMesh.SamplePosition(map.queuePoints[0].position, out var qh, 2f, NavMesh.AllAreas))

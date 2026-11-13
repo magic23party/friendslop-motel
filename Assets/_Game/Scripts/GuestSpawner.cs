@@ -12,7 +12,7 @@ namespace Friendslop
     public class GuestSpawner : MonoBehaviour
     {
         public static GuestSpawner Instance;
-        public static bool Paused = NetBootstrap.Arg("-guesttest") || NetBootstrap.Arg("-fighttest") || NetBootstrap.Arg("-hammertest") || NetBootstrap.Arg("-shoptest");
+        public static bool Paused = NetBootstrap.Arg("-guesttest") || NetBootstrap.Arg("-fighttest") || NetBootstrap.Arg("-hammertest") || NetBootstrap.Arg("-shoptest") || NetBootstrap.Arg("-toilettest");
 
         public GameConfig config;
         public GameObject guestPrefab;
@@ -37,6 +37,7 @@ namespace Friendslop
                 if (NetBootstrap.Arg("-fighttest")) gameObject.AddComponent<FightSelfTest>();
                 if (NetBootstrap.Arg("-hammertest")) gameObject.AddComponent<HammerServerTest>();
                 if (NetBootstrap.Arg("-shoptest")) gameObject.AddComponent<ShopSelfTest>();
+                if (NetBootstrap.Arg("-toilettest")) gameObject.AddComponent<ToiletSelfTest>();
             }
 
             if (gs.Phase.Value != GamePhase.Playing) { wasPlaying = false; wasNight = false; return; }

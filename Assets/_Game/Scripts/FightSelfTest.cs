@@ -10,7 +10,8 @@ namespace Friendslop
     /// 1) неплательщика бьют 3 раза → Down, деньги на полу, поднимаются в кассу, гость встаёт и уходит;
     /// 2) удар лучом по гостю → гость в ответ 5 раз бьёт игрока → игрок без сознания, кувалда выпала, гость сбегает, игрок встаёт;
     /// 3) удар игрок→игрок (нужен второй игрок, иначе пункт пропускается) → отключка 1 с, предмет выпал;
-    /// 4) драка двух гостей: штраф −5 $, строка в списке задач, продолжается, пока не уложены оба, потом кончается.
+    /// 4) драка двух гостей: штраф −5 $, строка в списке задач, продолжается, пока не уложены оба, потом кончается;
+    /// 5) (V3) неуязвимость wakeInvuln после пробуждения: оглушение/удары гостя/удар коллеги не проходят, через 0,6 с проходят.
     /// Итог — строка "[FIGHT] selftest OK/FAIL".
     /// </summary>
     public class FightSelfTest : MonoBehaviour
@@ -206,6 +207,7 @@ namespace Friendslop
             yield return WaitFor(() => gD.State.Value == GuestState.WaitForm, 20f);
             yield return CheckIn(gD, "D");
             int rD = lastRoom;
+            StartCoroutine(ExtendWhenLiving(gD));          // V3: путь от входа длиннее, комнаты выбираются случайно — D (ближняя комната) не должен выехать, пока C ещё идёт
             yield return WaitFor(() => gC.State.Value == GuestState.Living && gD.State.Value == GuestState.Living, 40f);
             bool bothLiving = gC.State.Value == GuestState.Living && gD.State.Value == GuestState.Living;
             Check(bothLiving, "C and D both live in their rooms");
@@ -242,6 +244,49 @@ namespace Friendslop
             yield return WaitFor(() => Gone(gD) || gD.State.Value == GuestState.Leaving, 3f);
             Check((Gone(gC) || gC.State.Value == GuestState.Leaving) && (Gone(gD) || gD.State.Value == GuestState.Leaving) && Room.Get(rD).State == RoomState.NeedsService,
                 "beaten brawlers got up and leave; D's room needs service");
+
+            // ================= 5 (V3): защита от стан-лока — после пробуждения wakeInvuln секунд ни гость, ни коллега не оглушат
+            hands.ServerClear();
+            hands.ServerTake(Hammer);
+            Teleport(me, home);
+            yield return new WaitForSeconds(0.3f);
+            me.ServerKnockOut(0.3f);
+            Check(me.IsDown.Value && !me.Invulnerable, "5: host knocked out for 0.3 s");
+            yield return WaitFor(() => !me.IsDown.Value, 3f);
+            Check(!me.IsDown.Value && me.Invulnerable && me.Protected.Value, $"5: just woke up -> invulnerable for {cfg.wakeInvuln:0.0#}s (flicker flag is on for everyone)");
+            me.ServerKnockOut(1f);
+            Check(!me.IsDown.Value, "5: knock-out right after waking up does not pass");
+            for (int i = 0; i < cfg.hitsToKnockPlayer + 2; i++) me.ServerGuestHit();
+            Check(!me.IsDown.Value, $"5: {cfg.hitsToKnockPlayer + 2} guest punches right after waking up do not knock him out");
+            if (other != null)
+            {
+                var oh5 = other.GetComponent<PlayerHands>();
+                oh5.ServerClear();
+                Physics.SyncTransforms();
+                other.ServerKnockOut(0.3f);
+                yield return WaitFor(() => !other.IsDown.Value, 3f);
+                // удар лежащего-только-что игрока лучом промахивается по геометрии (капсула ещё поднимается с пола), поэтому первым делом
+                // проверяем то, во что упирается любой удар кувалдой по игроку — ServerKnockOut коллеги, — а настоящий удар лучом делаем через 0,6 с
+                int blocks0 = PlayerCombat.InvulnBlocks;
+                other.ServerKnockOut(cfg.colleagueHitDownTime);
+                Check(!other.IsDown.Value && other.Invulnerable && PlayerCombat.InvulnBlocks == blocks0 + 1, "5: a hit on a colleague who just woke up does not knock him out (blocked by invulnerability)");
+                hands.ServerClear();
+                hands.ServerTake(Hammer);                // отключка роняла кувалду
+                Physics.SyncTransforms();
+                var eye5 = hands.Eye;
+                var dir5 = Vector3.forward;
+                yield return new WaitForSeconds(cfg.wakeInvuln + 0.1f);
+                Physics.SyncTransforms();
+                eye5 = hands.Eye;
+                dir5 = (other.transform.position + Vector3.up * 1.0f - eye5).normalized;
+                me.ServerStrike(eye5, dir5);
+                Check(other.IsDown.Value, "5: the same strike 0.6 s after he woke up passes");
+            }
+            else yield return new WaitForSeconds(cfg.wakeInvuln + 0.1f);
+            Check(!me.Invulnerable && !me.Protected.Value, "5: invulnerability is over after wakeInvuln seconds");
+            me.ServerKnockOut(1f);
+            Check(me.IsDown.Value, "5: knock-out 0.6 s after waking up passes");
+            yield return WaitFor(() => !me.IsDown.Value && (other == null || !other.IsDown.Value), 5f);
 
             Guest.ServerDespawnAll();
             yield return null; yield return null;

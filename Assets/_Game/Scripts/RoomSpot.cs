@@ -10,11 +10,16 @@ namespace Friendslop
     public class RoomSpot : StaticInteractable
     {
         public Room room;
+        /// <summary>V3: пятно/засор общего туалета (номера берут их у room). Для Bed/Supply/Lamp не используется.</summary>
+        public DirtySite mess;
         public SpotKind kind;
         public int supplyIndex;      // для Supply: 0 полотенце, 1 мыло, 2 салфетки
 
+        DirtySite Site => mess != null ? mess : room;
+
         public override string Hint(HeldItem held)
         {
+            if (kind == SpotKind.Stain || kind == SpotKind.Clog) return MessHint(held);
             if (room == null || room.Locked) return "";
             if (kind == SpotKind.Lamp)
             {
@@ -23,24 +28,6 @@ namespace Friendslop
                 return held.IsNone ? "Лампа перегорела — нужна лампочка (гость платит на 20 $ меньше)" : "";
             }
             if (room.State != RoomState.NeedsService) return "";
-            if (kind == SpotKind.Stain)
-            {
-                if (!room.HasStain) return "";
-                if (held.type != ItemType.Mop) return "Пятно — нужна швабра";
-                int pct = room.MopPct.Value;
-                return pct > 0 ? "Моешь… " + pct + "%" : "ЛКМ (держать) — мыть пятно";
-            }
-            if (kind == SpotKind.Clog)
-            {
-                if (!room.HasClog) return "";
-                if (held.type == ItemType.Plunger)
-                {
-                    int pct = room.PlungePct.Value;
-                    return pct > 0 ? "Прочищаешь… " + pct + "%" : "ЛКМ (держать) — прочистить засор";
-                }
-                if (room.PlumberPending) return "Сантехник уже идёт (" + TaskBoard.Fmt(PlumberLeft(room)) + ")";
-                return "Засор — нужен вантуз (или вызови сантехника в магазине)";
-            }
             int idx = Room.SupplyIndex(held.type);
             if (idx < 0)
             {
@@ -53,10 +40,26 @@ namespace Friendslop
             return Interact.E("занести: " + Room.SupplyNames[idx]);
         }
 
-        public static float PlumberLeft(Room r)
+        /// <summary>Пятно и засор — общий путь для номера и туалета (DirtySite).</summary>
+        string MessHint(HeldItem held)
         {
-            var gs = GameState.Instance;
-            return gs == null ? 0f : UnityEngine.Mathf.Max(0f, (float)(r.PlumberEnd.Value - gs.Now));
+            var site = Site;
+            if (site == null || (room != null && room.Locked) || !site.CanClean) return "";
+            if (kind == SpotKind.Stain)
+            {
+                if (!site.HasStain) return "";
+                if (held.type != ItemType.Mop) return "Пятно — нужна швабра";
+                int pct = site.MopPct.Value;
+                return pct > 0 ? "Моешь… " + pct + "%" : "ЛКМ (держать) — мыть пятно";
+            }
+            if (!site.HasClog) return "";
+            if (held.type == ItemType.Plunger)
+            {
+                int pct = site.PlungePct.Value;
+                return pct > 0 ? "Прочищаешь… " + pct + "%" : "ЛКМ (держать) — прочистить засор";
+            }
+            if (site.PlumberPending) return "Сантехник уже идёт (" + TaskBoard.Fmt(site.PlumberLeft) + ")";
+            return "Засор — нужен вантуз (или вызови сантехника в магазине)";
         }
 
         public override void ServerInteract(PlayerHands who, HeldItem held)
