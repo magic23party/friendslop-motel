@@ -54,9 +54,12 @@ MonoBehaviour:
   playerHitForget: 10
   startMoney: 150
   guestPays: 50
-  taxInterval: 480
-  taxAmount: 100
-  taxDeadline: 180
+  dayLength: 480
+  nightLength: 180
+  taxBase: 100
+  taxStep: 50
+  nightWarning: 20
+  twilight: 12
   moveSpeed: 5
   runMultiplier: 1.6
   mouseSensitivity: 0.12

@@ -12,8 +12,10 @@ namespace Friendslop
         {
             var gs = GameState.Instance;
             if (gs == null || gs.Phase.Value != GamePhase.Playing) return "";
-            int amount = gs.config.taxAmount;
-            if (!gs.TaxDue.Value) return "Налоги: счёта пока нет (через " + TaskBoard.Fmt(gs.TaxLeft) + ")";
+            int amount = gs.TaxAmount;
+            if (!gs.TaxDue.Value)
+                return gs.Night.Value ? "Налоги: счёт оплачен (утро через " + TaskBoard.Fmt(gs.PhaseLeft) + ")"
+                                      : $"Налоги: счёт {amount} $ выставят ночью (через " + TaskBoard.Fmt(gs.PhaseLeft) + ")";
             if (gs.Money.Value < amount) return $"Счёт {amount} $ — в кассе только {gs.Money.Value} $";
             return Interact.E($"оплатить налог {amount} $");
         }
@@ -30,7 +32,8 @@ namespace Friendslop
             var gs = GameState.Instance;
             string txt = "";
             if (gs != null && gs.Phase.Value == GamePhase.Playing)
-                txt = gs.TaxDue.Value ? $"СЧЁТ {gs.config.taxAmount} $\n{TaskBoard.Fmt(gs.TaxLeft)}" : "Счёта нет\n" + TaskBoard.Fmt(gs.TaxLeft);
+                txt = gs.TaxDue.Value ? $"СЧЁТ {gs.TaxAmount} $\n{TaskBoard.Fmt(gs.PhaseLeft)}"
+                    : gs.Night.Value ? "Оплачено\n" + TaskBoard.Fmt(gs.PhaseLeft) : "Счёта нет\n" + TaskBoard.Fmt(gs.PhaseLeft);
             if (txt == lastText) return;
             lastText = txt;
             screen.text = txt;

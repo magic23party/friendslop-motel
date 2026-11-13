@@ -34,7 +34,9 @@ namespace Friendslop
             if (gs == null || gs.Phase.Value != GamePhase.Playing) return;
 
             if (gs.TaxDue.Value)
-                into.Add(new TaskLine($"Счёт {gs.config.taxAmount} $ не оплачен — терминал налогов ({Fmt(gs.TaxLeft)})", true));
+                into.Add(new TaskLine($"Счёт {gs.TaxAmount} $ не оплачен — терминал налогов ({Fmt(gs.TaxLeft)})", true));
+            else if (gs.NightSoon)
+                into.Add(new TaskLine($"Ночь через {Fmt(gs.PhaseLeft)} — приготовь {gs.TaxAmount} $ на налог", gs.Money.Value < gs.TaxAmount));
 
             foreach (var p in providers) p(into);
 

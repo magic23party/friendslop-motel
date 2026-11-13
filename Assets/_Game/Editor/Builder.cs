@@ -282,6 +282,7 @@ namespace Friendslop.EditorTools
         {
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             BuildLightingAndPost();                      // P1: лунный свет, ambient, туман, Volume (tonemapping/bloom/vignette)
+            new GameObject("DayNight").AddComponent<DayNight>();   // V1: плавная смена света день/ночь по GameState
 
             BuildShell();
 

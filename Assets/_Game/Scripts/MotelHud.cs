@@ -15,6 +15,11 @@ namespace Friendslop
 
         readonly List<TaskLine> tasks = new List<TaskLine>();
         GamePhase prevPhase;
+        bool daySeen, prevNight;
+        int prevDay;
+        float bannerUntil;
+        string bannerText = "";
+        bool bannerNight;
         static GUIStyle money, valueRight;
 
         void Update()
@@ -32,6 +37,20 @@ namespace Friendslop
                 && (kb.enterKey.wasPressedThisFrame || kb.numpadEnterKey.wasPressedThisFrame)
                 && !(PlayerController.Local != null && PlayerController.Local.MenuOpen))
                 gs.StartShift();
+
+            // баннер смены дня/ночи (V1): «День N» / «Наступила ночь»
+            if (gs != null && gs.Phase.Value == GamePhase.Playing)
+            {
+                bool night = gs.Night.Value; int day = gs.Day.Value;
+                if (!daySeen || night != prevNight || day != prevDay)
+                {
+                    daySeen = true; prevNight = night; prevDay = day;
+                    bannerNight = night;
+                    bannerText = night ? $"Наступила ночь · счёт {gs.TaxAmount} $" : $"День {day}";
+                    bannerUntil = Time.unscaledTime + 3.5f;
+                }
+            }
+            else daySeen = false;
 
             // Game Over: курсор свободен у всех (кнопки экрана); после «Заново» — снова в игру
             var me = PlayerController.Local;
@@ -88,7 +107,7 @@ namespace Friendslop
                 else
                 {
                     DrawShiftPanel(gs);
-                    if (gs.Phase.Value == GamePhase.Playing) DrawTasks();
+                    if (gs.Phase.Value == GamePhase.Playing) { DrawTasks(); DrawBanner(cx); }
                 }
             }
 
@@ -148,23 +167,37 @@ namespace Friendslop
 
         // ------------------------------------------------------------ касса, налоги, задачи, Game Over
 
+        void DrawBanner(float cx)
+        {
+            if (Time.unscaledTime >= bannerUntil) return;
+            var glow = bannerNight ? UiStyle.Neon : UiStyle.Mustard;
+            UiStyle.NeonTitle(new Rect(cx - 360, 150, 720, 60), bannerText, glow, new Color(1f, 0.95f, 0.9f), 38);
+        }
+
         void DrawShiftPanel(GameState gs)
         {
+            bool playing = gs.Phase.Value == GamePhase.Playing;
             bool due = gs.TaxDue.Value;
-            float pulse = due ? 0.8f + 0.2f * Mathf.Sin(Time.unscaledTime * 8f) : 1f;
+            bool night = gs.Night.Value;
+            bool soon = gs.NightSoon;
+            float pulse = due || soon ? 0.8f + 0.2f * Mathf.Sin(Time.unscaledTime * 8f) : 1f;
             var alert = new Color(UiStyle.Alert.r * pulse, UiStyle.Alert.g * pulse, UiStyle.Alert.b * pulse, 1f);
             UiStyle.Plate(new Rect(12, 12, 330, 122), due ? UiStyle.Kind.Urgent : UiStyle.Kind.Panel, due ? 0.9f : 1f);
-            Ui.Shadowed(new Rect(24, 16, 90, 24), "Смена", UiStyle.Header, UiStyle.Mustard);
-            Ui.Shadowed(new Rect(110, 16, 220, 24), $"комнат {gs.RoomCount.Value}  ·  игроков {gs.PlayerCount.Value}", UiStyle.Small, new Color(1, 1, 1, 0.75f));
+            Ui.Shadowed(new Rect(24, 16, 150, 24), night ? $"День {gs.Day.Value} · ночь" : $"День {gs.Day.Value}", UiStyle.Header, night ? UiStyle.TealLight : UiStyle.Mustard);
+            Ui.Shadowed(new Rect(178, 16, 160, 24), $"комнат {gs.RoomCount.Value} · игроков {gs.PlayerCount.Value}", UiStyle.Small, new Color(1, 1, 1, 0.75f));
             Ui.Shadowed(new Rect(24, 42, 100, 36), "Касса", UiStyle.Label, UiStyle.Cream);
             Ui.Shadowed(new Rect(110, 40, 218, 40), $"{gs.Money.Value} $", money, UiStyle.Good);
 
-            string tax = due
-                ? $"СЧЁТ {gs.config.taxAmount} $! До закрытия: {TaskBoard.Fmt(gs.TaxLeft)}"
-                : $"Налог {gs.config.taxAmount} $ через {TaskBoard.Fmt(gs.TaxLeft)}";
-            Ui.Shadowed(new Rect(24, 82, 304, 22), tax, UiStyle.Small, due ? new Color(1f, 0.86f, 0.82f) : Color.white);
-            float total = due ? gs.TaxDeadline : gs.TaxInterval;
-            UiStyle.Bar(new Rect(24, 108, 292, 14), total > 0f ? gs.TaxLeft / total : 0f, due ? alert : UiStyle.Teal);
+            string tax;
+            if (!playing) tax = "Мотель закрыт";
+            else if (due) tax = $"Ночь · счёт {gs.TaxAmount} $ · {TaskBoard.Fmt(gs.PhaseLeft)}";
+            else if (night) tax = $"Ночь · счёт оплачен · {TaskBoard.Fmt(gs.PhaseLeft)}";
+            else if (soon) tax = $"Скоро ночь! Счёт {gs.TaxAmount} $ · {TaskBoard.Fmt(gs.PhaseLeft)}";
+            else tax = $"До ночи {TaskBoard.Fmt(gs.PhaseLeft)} · налог {gs.TaxAmount} $";
+            Ui.Shadowed(new Rect(24, 82, 304, 22), tax, UiStyle.Small, due ? new Color(1f, 0.86f, 0.82f) : soon ? UiStyle.Mustard : Color.white);
+            float total = gs.PhaseTotal;
+            Color barColor = due ? alert : night ? UiStyle.Good : soon ? UiStyle.Mustard : UiStyle.Teal;
+            UiStyle.Bar(new Rect(24, 108, 292, 14), playing && total > 0f ? gs.PhaseLeft / total : 0f, barColor);
         }
 
         void DrawTasks()

@@ -7,6 +7,7 @@ namespace Friendslop
     /// Самотест C3 (флаг -roomtest, только на хосте; с -fasttax проходит и налоговую часть):
     /// номер 1 приводится в Ready теми же серверными методами, что и игрок (расходники, швабра, цели RoomSpot),
     /// деньги идут в кассу, счёт оплачивается на терминале, неоплата даёт Game Over, «Заново» сбрасывает смену.
+    /// С V1 «-fasttax» = день 20 с, ночь 20 с: счёт выставляется с наступлением ночи (день 1 — 100 $, день 2 — 150 $).
     /// Результат — строки "[ROOM] selftest OK/FAIL ..." и "[TAX] selftest OK/FAIL ...".
     /// </summary>
     public class ShiftSelfTest : MonoBehaviour
@@ -120,10 +121,10 @@ namespace Friendslop
             }
             Debug.Log("[ROOM] selftest " + (fails == 0 ? "OK (rooms done)" : "FAIL count=" + fails));
 
-            // ---- налог (нужен -fasttax: 20 с до счёта и 20 с на оплату)
+            // ---- налог (нужен -fasttax: день 20 с, ночь 20 с; счёт выставляется с наступлением ночи)
             if (!NetBootstrap.Arg("-fasttax")) { Debug.Log("[TAX] selftest skipped (no -fasttax)"); yield break; }
             yield return WaitFor(() => gs.TaxDue.Value, 40f);
-            Check("TAX", gs.TaxDue.Value, "invoice issued");
+            Check("TAX", gs.TaxDue.Value && gs.Night.Value && gs.Day.Value == 1 && gs.TaxAmount == cfg.taxBase, "invoice issued at nightfall, day 1 = " + gs.TaxAmount + " $");
 
             var term = MotelMap.Instance != null && MotelMap.Instance.taxTerminal != null ? MotelMap.Instance.taxTerminal.GetComponent<TaxTerminal>() : null;
             Check("TAX", term != null, "terminal present");
@@ -134,18 +135,22 @@ namespace Friendslop
                 term.ServerInteract(hands, hands.Held.Value);
                 Check("TAX", gs.TaxDue.Value && gs.Money.Value == 10, "cannot pay without money");
                 gs.ServerAddMoney(100);
-                int before = gs.Money.Value;
+                int before = gs.Money.Value, amount = gs.TaxAmount;
                 term.ServerInteract(hands, hands.Held.Value);
-                Check("TAX", !gs.TaxDue.Value && gs.Money.Value == before - cfg.taxAmount, "paid at terminal, till=" + gs.Money.Value);
+                Check("TAX", !gs.TaxDue.Value && gs.Money.Value == before - amount, "paid at terminal, till=" + gs.Money.Value);
             }
 
-            // второй счёт не платим -> Game Over по дедлайну
+            // утро: день 2, налог вырос; второй счёт не платим -> Game Over по дедлайну (конец ночи)
+            yield return WaitFor(() => !gs.Night.Value && gs.Day.Value == 2, 40f);
+            Check("TAX", !gs.Night.Value && gs.Day.Value == 2 && !gs.TaxDue.Value, "morning of day 2 after paid night");
+            yield return WaitFor(() => gs.Night.Value && gs.TaxDue.Value, 40f);
+            Check("TAX", gs.TaxDue.Value && gs.TaxAmount == cfg.taxBase + cfg.taxStep, "day 2 invoice grew to " + gs.TaxAmount + " $");
             yield return WaitFor(() => gs.Phase.Value == GamePhase.GameOver, 90f);
             Check("TAX", gs.Phase.Value == GamePhase.GameOver, "game over after unpaid deadline (shift " + gs.ShiftSeconds.Value.ToString("0") + "s, earned " + gs.Earned.Value + ")");
 
             gs.ServerRestart();
             yield return null;
-            Check("TAX", gs.Phase.Value == GamePhase.Playing && gs.Money.Value == cfg.startMoney && !gs.TaxDue.Value && gs.Earned.Value == 0, "restart resets shift");
+            Check("TAX", gs.Phase.Value == GamePhase.Playing && gs.Money.Value == cfg.startMoney && !gs.TaxDue.Value && gs.Earned.Value == 0 && gs.Day.Value == 1 && !gs.Night.Value, "restart resets shift and day");
             Check("TAX", MotelMap.Instance.keyBoard.Has(1) && (Room.Get(1).State == RoomState.NeedsService) == cfg.roomsStartDirty, "restart resets keys and rooms");
             Debug.Log("[TAX] selftest " + (fails == 0 ? "OK (all done)" : "FAIL count=" + fails));
         }

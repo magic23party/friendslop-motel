@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Friendslop
 {
-    public enum Snd { Bell, Hit, Whoosh, Pickup, Put, Cash, Fine, Alarm, Step, Click, Thud }
+    public enum Snd { Bell, Hit, Whoosh, Pickup, Put, Cash, Fine, Alarm, Step, Click, Thud, Dusk, Dawn, Warn }
 
     /// <summary>
     /// Процедурный звук (P3): клипы синтезируются в коде (AudioClip.Create), файлов нет.
@@ -19,7 +19,7 @@ namespace Friendslop
         static readonly AudioClip[] clips = new AudioClip[Count];
         static readonly float[] lastAt = new float[Count];
         // минимальный интервал между одинаковыми звуками, с (realtime)
-        static readonly float[] gap = { 0.40f, 0.07f, 0.12f, 0.06f, 0.08f, 0.10f, 0.15f, 1.2f, 0.05f, 0.03f, 0.25f };
+        static readonly float[] gap = { 0.40f, 0.07f, 0.12f, 0.06f, 0.08f, 0.10f, 0.15f, 1.2f, 0.05f, 0.03f, 0.25f, 1.0f, 1.0f, 0.8f };
 
         static AudioSource[] pool;
         static int next;
@@ -185,6 +185,25 @@ namespace Friendslop
                 }
                 case Snd.Click:     // интерфейс: сухой «тик»
                     return Make("click", 0.045f, t => Sin(1250f, t) * Env(t, 0.001f, 90f) + noise() * 0.15f * Mathf.Exp(-t * 300f));
+                case Snd.Dusk:      // ночь: три нисходящих мягких «бом» (колокольчик, минор)
+                {
+                    Func<float, float, float> bong = (hz, t) => t < 0f ? 0f :
+                        (Sin(hz, t) + Sin(hz * 2.0f, t) * 0.3f + Sin(hz * 3.01f, t) * 0.12f) * Env(t, 0.006f, 3.4f);
+                    return Make("dusk", 1.5f, t => bong(659f, t) + 0.9f * bong(523f, t - 0.28f) + 0.9f * bong(392f, t - 0.56f));
+                }
+                case Snd.Dawn:      // утро: три восходящих светлых «динь»
+                {
+                    Func<float, float, float> ding = (hz, t) => t < 0f ? 0f :
+                        (Sin(hz, t) + Sin(hz * 2.76f, t) * 0.25f) * Env(t, 0.003f, 4.2f);
+                    return Make("dawn", 1.4f, t => ding(784f, t) + 0.9f * ding(988f, t - 0.2f) + 0.9f * ding(1319f, t - 0.4f));
+                }
+                case Snd.Warn:      // предупреждение: два коротких тона
+                    return Make("warn", 0.5f, t =>
+                    {
+                        float a = Sin(740f, t) * Env(t, 0.004f, 14f);
+                        float b = t > 0.2f ? Sin(740f, t) * Env(t - 0.2f, 0.004f, 14f) : 0f;
+                        return a + b;
+                    });
                 default:            // Thud: падение тела
                 {
                     float lp = 0f;

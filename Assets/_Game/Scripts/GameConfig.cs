@@ -56,9 +56,13 @@ namespace Friendslop
         [Header("Деньги и налоги")]
         public int startMoney = 150;
         public int guestPays = 50;
-        public float taxInterval = 480f;      // 8 мин
-        public int taxAmount = 100;
-        public float taxDeadline = 180f;      // 3 мин
+        [Header("День и ночь (V1)")]
+        public float dayLength = 480f;        // день 8 мин: гости приходят
+        public float nightLength = 180f;      // ночь 3 мин: новых гостей нет, счёт налога выставлен, дедлайн — конец ночи
+        public int taxBase = 100;             // налог в день 1, $
+        public int taxStep = 50;              // прибавка за каждый следующий день, $
+        public float nightWarning = 20f;      // за сколько секунд до ночи предупреждать
+        public float twilight = 12f;          // сколько секунд длится смена света перед ночью/утром
 
         [Header("Игрок / взаимодействие")]
         public float moveSpeed = 5f;

@@ -36,7 +36,8 @@ namespace Friendslop
     ///   uishotfp имя [задержка_с]           то же камерой игрока (вид от 1-го лица, viewmodel, подсказка под прицелом)
     ///   hl none|item|guest                  подсветка и подсказка у владельца: ближайший предмет / гость (как при наведении прицела)
     ///   fx hit x y z | fx money дельта x y z   эффекты: искры удара / всплывашка денег со звуком
-    ///   taxdue 0|1                          выставить/снять налоговый счёт (HUD, тревога)
+    ///   taxdue 0|1                          выставить/снять налоговый счёт (HUD, тревога; 1 = ночь)
+    ///   daynight day|night|dusk|auto        зафиксировать свет дня/ночи/сумерек (V1) или вернуть управление фазой (auto)
     ///   gameover                            «Мотель закрыт» (экран Game Over)
     /// <c>-shotwait N</c> — подождать N с смены до первого кадра (чтобы пришли гости).
     /// </summary>
@@ -337,7 +338,18 @@ namespace Friendslop
                 case "taxdue":
                 {
                     var gs = GameState.Instance;
-                    if (gs != null) { gs.TaxDue.Value = F(s, 1) > 0f; gs.TaxTime.Value = gs.Now + 100.0; }
+                    if (gs != null) { gs.TaxDue.Value = F(s, 1) > 0f; gs.Night.Value = gs.TaxDue.Value; gs.PhaseEnd.Value = gs.Now + 100.0; }
+                    yield return null;
+                    break;
+                }
+                case "daynight":
+                {
+                    var dn = DayNight.Instance;
+                    if (dn != null)
+                    {
+                        string m = s.Length > 1 ? s[1] : "auto";
+                        dn.Force(m == "day" ? 0f : m == "night" ? 1f : m == "dusk" ? 0.5f : -1f);
+                    }
                     yield return null;
                     break;
                 }
@@ -428,7 +440,7 @@ namespace Friendslop
                     list.Add(new[] { "shot", p.name, p.pos.x.ToString(CI), p.pos.y.ToString(CI), p.pos.z.ToString(CI), p.look.x.ToString(CI), p.look.y.ToString(CI), p.look.z.ToString(CI), p.fov.ToString(CI) });
                 return list;
             }
-            var known = new HashSet<string> { "shot", "shotfp", "wait", "spawner", "guest", "clearguests", "held", "view", "player", "knock", "swing", "item", "clearitems", "moon", "toggle", "handpose", "slab", "room", "handaim", "guestlive", "cam", "uishot", "uishotfp", "hl", "fx", "taxdue", "gameover" };
+            var known = new HashSet<string> { "shot", "shotfp", "wait", "spawner", "guest", "clearguests", "held", "view", "player", "knock", "swing", "item", "clearitems", "moon", "toggle", "handpose", "slab", "room", "handaim", "guestlive", "cam", "uishot", "uishotfp", "hl", "fx", "taxdue", "gameover", "daynight" };
             foreach (var raw in File.ReadAllLines(file))
             {
                 var line = raw.Trim();

@@ -6,6 +6,7 @@ namespace Friendslop
     /// <summary>
     /// Спавнер гостей (in-scene, не сетевой; работает только на сервере/хосте).
     /// Интервал из GameConfig: ≤ smallTeamMax игроков — 15±10 с, больше — 8±5 с. Не спавнит, пока очередь у стойки полна.
+    /// Ночью (V1) новые гости не приходят; утром первый гость — через firstGuestDelay.
     /// С флагом -guesttest стартует на паузе: гостей создаёт GuestSelfTest.
     /// </summary>
     public class GuestSpawner : MonoBehaviour
@@ -17,7 +18,7 @@ namespace Friendslop
         public GameObject guestPrefab;
 
         float nextAt, nextStats;
-        bool wasPlaying;
+        bool wasPlaying, wasNight;
         bool testAttached;
 
         void Awake() { Instance = this; }
@@ -37,14 +38,16 @@ namespace Friendslop
                 if (NetBootstrap.Arg("-hammertest")) gameObject.AddComponent<HammerServerTest>();
             }
 
-            if (gs.Phase.Value != GamePhase.Playing) { wasPlaying = false; return; }
-            if (!wasPlaying) { wasPlaying = true; nextAt = Time.time + config.firstGuestDelay / Guest.TimeScale; }
+            if (gs.Phase.Value != GamePhase.Playing) { wasPlaying = false; wasNight = false; return; }
+            if (!wasPlaying) { wasPlaying = true; wasNight = false; nextAt = Time.time + config.firstGuestDelay / Guest.TimeScale; }
+            if (wasNight && !gs.Night.Value) nextAt = Time.time + config.firstGuestDelay / Guest.TimeScale;   // утро: гости снова идут
+            wasNight = gs.Night.Value;
             if (Time.time >= nextStats)
             {
                 nextStats = Time.time + 60f;
                 Debug.Log($"[STATS] guests spawned={Guest.StatSpawned} settled={Guest.StatSettled} paid={Guest.StatPaid} left={Guest.StatLeft} now={Guest.All.Count} money={gs.Money.Value}");
             }
-            if (Paused || Time.time < nextAt) return;
+            if (Paused || wasNight || Time.time < nextAt) return;       // ночью новые гости не приходят
 
             var map = MotelMap.Instance;
             if (map == null || map.queuePoints == null || Guest.QueueCount() >= map.queuePoints.Length) { nextAt = Time.time + 1f; return; }

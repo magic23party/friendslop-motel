@@ -1,0 +1,20 @@
+# V1: день / ночь / сумерки (снаружи и внутри), HUD
+# запуск: powershell -ExecutionPolicy Bypass -File tools/shots.ps1 -Label v1 -ShotFile tools/shots_v1.txt
+spawner off
+view fp
+daynight day
+shot v1_day_outside -8 2.2 -40 0 2.4 -20 64
+shot v1_day_lobby 14 1.9 1 -3 1.2 -13 72
+shot v1_day_corridor -16.5 1.7 12.5 10 1.5 12.5 66
+daynight dusk
+shot v1_dusk_outside -8 2.2 -40 0 2.4 -20 64
+daynight night
+shot v1_night_outside -8 2.2 -40 0 2.4 -20 64
+shot v1_night_lobby 14 1.9 1 -3 1.2 -13 72
+shot v1_night_corridor -16.5 1.7 12.5 10 1.5 12.5 66
+daynight day
+player 12 0 1 227 3
+uishotfp v1_hud_day 0.6
+daynight night
+taxdue 1
+uishotfp v1_hud_night 0.6
