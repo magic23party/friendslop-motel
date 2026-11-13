@@ -254,14 +254,25 @@ namespace Friendslop
         IInteractable Aim()
         {
             var t = pc.cam.transform;
-            int n = Physics.RaycastNonAlloc(t.position, t.forward, hits, config.interactDistance, ~0, QueryTriggerInteraction.Ignore);
+            return AimFrom(t.position, t.forward, config.interactDistance, this);
+        }
+
+        /// <summary>
+        /// Луч прицела: ближайший коллайдер с целью. Столешница ресепшена луч не гасит (P4): гостя в очереди
+        /// можно обслужить и из-за стойки, и спереди; свой корпус тоже пропускается.
+        /// </summary>
+        public static IInteractable AimFrom(Vector3 origin, Vector3 dir, float distance, PlayerHands self)
+        {
+            int n = Physics.RaycastNonAlloc(origin, dir, hits, distance, ~0, QueryTriggerInteraction.Ignore);
+            var desk = MotelMap.Instance != null ? MotelMap.Instance.receptionDesk : null;
             float best = float.MaxValue;
             Collider hit = null;
             for (int i = 0; i < n; i++)
             {
                 var h = hits[i];
                 if (h.distance >= best) continue;
-                if (h.collider.GetComponentInParent<PlayerHands>() == this) continue;   // свой корпус
+                if (self != null && h.collider.GetComponentInParent<PlayerHands>() == self) continue;   // свой корпус
+                if (desk != null && h.collider.transform == desk) continue;              // столешница ресепшена
                 best = h.distance; hit = h.collider;
             }
             return hit != null ? hit.GetComponentInParent<IInteractable>() : null;

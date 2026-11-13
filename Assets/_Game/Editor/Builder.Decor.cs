@@ -239,7 +239,11 @@ namespace Friendslop.EditorTools
             WallTrim(r, new Vector3(0, 0, -20.0f), 0f, 40f, "Trim_S");
             WallTrim(r, new Vector3(-20.0f, 0, 0), 90f, 40f, "Trim_W");
             WallTrim(r, new Vector3(20.0f, 0, 0), -90f, 40f, "Trim_E");
-            WallTrim(r, new Vector3(0, 0, 5.0f), 180f, 36f, "Trim_RoomsBack");
+            // P4: стенка комнат со стороны лобби разорвана центральным проходом (x ±1.55)
+            WallTrim(r, new Vector3(-10.5f, 0, 5.0f), 180f, 17.9f, "Trim_RoomsBackW");
+            WallTrim(r, new Vector3(10.5f, 0, 5.0f), 180f, 17.9f, "Trim_RoomsBackE");
+            WallTrim(r, new Vector3(-1.5f, 0, 8.0f), 90f, 6f, "Trim_PassageW");
+            WallTrim(r, new Vector3(1.5f, 0, 8.0f), -90f, 6f, "Trim_PassageE");
 
             // окна: изнутри — холодная ночь, снаружи — тёплый свет интерьера
             var night = MatE("PaneNight", new Color(0.05f, 0.09f, 0.20f), new Color(0.07f, 0.14f, 0.34f), 1.1f);
@@ -271,7 +275,7 @@ namespace Friendslop.EditorTools
                 {
                     if ((i + j) % 2 != 0) continue;
                     float cx = -19f + 2f * i, cz = -19f + 2f * j;
-                    if (cz + 1f > 5.01f && Mathf.Abs(cx) < 18f) continue;
+                    if (cz + 1f > 5.01f && Mathf.Abs(cx) < 18f && Mathf.Abs(cx) > 1.5f) continue;     // P4: плитка продолжается по центральному проходу
                     Box(tiles, "Tile", new Vector3(cx, 0.005f, cz), new Vector3(1.97f, 0.012f, 1.97f), dark);
                 }
         }
@@ -291,7 +295,11 @@ namespace Friendslop.EditorTools
             Plafon(r, new Vector3(16.5f, 2.97f, -15f), 0.6f, 9f, 10f);
 
             // картины на стене комнат (со стороны лобби) и колонны с карнизом
-            for (int i = 0; i < 5; i++) Picture(r, new Vector3(-12f + 6f * i, 1.85f, 4.96f), 180f, i);
+            for (int i = 0; i < 6; i++) Picture(r, new Vector3((i < 3 ? -15f + 6f * i : 3f + 6f * (i - 3)), 1.85f, 4.96f), 180f, i);     // P4: по три с каждой стороны прохода
+            // над проходом — балка с указателем «НОМЕРА» (читается из лобби)
+            Box(r, "PassageHeader", new Vector3(0, 2.62f, 5.0f), new Vector3(3.2f, 0.76f, 0.2f), Mat("PassageHeader", Palette.TealDark));
+            Box(r, "PassageHeaderTrim", new Vector3(0, 2.23f, 4.9f), new Vector3(3.2f, 0.06f, 0.05f), Mat("PassageHeaderTrim", Palette.Cream));
+            Label(r, "НОМЕРА", new Vector3(0, 2.62f, 4.88f), Vector3.back, 0.42f, Palette.Cream, "Label_Rooms");
             foreach (var cp in new[] { new Vector2(-17f, 2.5f), new Vector2(17f, 2.5f), new Vector2(-17f, -17f), new Vector2(17f, -17f) })
             {
                 Box(r, "ColumnBase", new Vector3(cp.x, 0.15f, cp.y), new Vector3(1.4f, 0.3f, 1.4f), Mat("ColumnTrim", Palette.WoodDark));
@@ -305,7 +313,7 @@ namespace Friendslop.EditorTools
             Plant(r, new Vector3(9.5f, 0, -18.9f), 1.0f);
 
             // автомат с напитками в западном проходе (единственный декор с коллайдером — простой бокс у стены)
-            VendingMachine(r, new Vector3(-19.6f, 0, 8.5f));
+            VendingMachine(r, new Vector3(-19.6f, 0, 12.5f));       // P4: боковой проход закрыт, автомат переехал в западный конец коридора
         }
 
         /// <summary>Картина на стене: рама, холст, «солнце» и «холм» (плоские цвета). Локальный +Z смотрит на зрителя.</summary>
@@ -443,8 +451,7 @@ namespace Friendslop.EditorTools
             // потолочные лампы коридора
             for (int k = 0; k < 6; k++) Plafon(r, new Vector3(-15f + 6f * k, 2.97f, 12.5f), 0.6f, 10f, 10f);
             // боковые проходы
-            Plafon(r, new Vector3(-19f, 2.97f, 8f), 0.5f, 6f, 8f);
-            Plafon(r, new Vector3(19f, 2.97f, 8f), 0.5f, 6f, 8f);
+            Plafon(r, new Vector3(0f, 2.97f, 8f), 0.5f, 7f, 8f);          // P4: лампа в центральном проходе
             Plafon(r, new Vector3(-19f, 2.97f, 17f), 0.5f, 6f, 8f);
             Plafon(r, new Vector3(19f, 2.97f, 17f), 0.5f, 6f, 8f);
 
@@ -452,10 +459,12 @@ namespace Friendslop.EditorTools
             for (int m = 0; m < 10; m += 2)
             {
                 float xj = -14.4f + 3.6f * m;
-                Plant(r, new Vector3(xj, 0, (m / 2) % 2 == 0 ? 11.5f : 13.5f), 0.9f);
+                bool south = (m / 2) % 2 == 0;
+                if (south) xj = m == 4 ? -1.95f : xj + (xj < 0 ? -SouthGap : SouthGap);      // P4: южный ряд сдвинут; горшок не в створе прохода
+                Plant(r, new Vector3(xj, 0, south ? 11.5f : 13.5f), 0.9f);
             }
             Plant(r, new Vector3(17.3f, 0, 13.5f), 1.0f);
-            Plant(r, new Vector3(-17.3f, 0, 11.5f), 1.0f);
+            Plant(r, new Vector3(-18.9f, 0, 11.4f), 1.0f);       // P4: не перед дверью номера 11 (он сдвинут)
         }
 
         static void Plant(Transform r, Vector3 pos, float s)

@@ -12,6 +12,7 @@ namespace Friendslop.EditorTools
     public static partial class Builder
     {
         const string ItemDir = PrefabDir + "/Items";
+        public const float SouthGap = 1.5f;        // P4: на сколько сдвинуты половины южного ряда номеров наружу; проход по центру = 2*(1.8-1.5)+... = 3.1 м между стенами
         const string WorldItemPath = PrefabDir + "/WorldItem.prefab";
         static int sceneIdCounter;
         static Font labelFont;
@@ -278,7 +279,7 @@ namespace Friendslop.EditorTools
             map.guestSpawn = Empty("GuestSpawn", root, new Vector3(3f, 0, -19f)).transform;
             map.guestExit = Empty("GuestExit", root, new Vector3(3f, 0, -19.4f)).transform;
             map.queuePoints = new Transform[4];
-            for (int i = 0; i < 4; i++) map.queuePoints[i] = Empty("Queue_" + i, root, new Vector3(0, 0, -14.8f - 1.1f * i)).transform;
+            for (int i = 0; i < 4; i++) map.queuePoints[i] = Empty("Queue_" + i, root, new Vector3(0, 0, -14.3f - 1.1f * i)).transform;
             Label(root, "ВХОД", new Vector3(3f, 2.5f, -19.8f), Vector3.forward, 0.5f, white, "Label_Entrance");
 
             // --- доска ключей (отдельная стенка, крючки с +Z стороны)
@@ -320,15 +321,18 @@ namespace Friendslop.EditorTools
             tax.screen = Label(term.transform, "", new Vector3(0.40f, 0.95f, 0), Vector3.right, 0.11f, new Color(0.1f, 0.25f, 0.3f), "ScreenText");
 
             // --- коридор и номера: 1..10 на север (z 14..20), 11..20 на юг (z 5..11), коридор z 11..14
-            
+            // P4: южный ряд разведён на две пятёрки (±SouthGap от прежних мест) — по центру прямой проход шириной ~3 м из лобби в коридор
             for (int k = 0; k < 10; k++)
             {
                 float cx = -16.2f + 3.6f * k;
                 BuildRoom(root, 1 + k, new Vector3(cx, 0, 14f), 0f, db);
-                BuildRoom(root, 11 + k, new Vector3(cx, 0, 11f), 180f, db);
+                BuildRoom(root, 11 + k, new Vector3(cx + (k < 5 ? -SouthGap : SouthGap), 0, 11f), 180f, db);
             }
-            // стенка между лобби и южными номерами не нужна: задние стены номеров (z=5) её заменяют
-
+            // боковые щели у стен (0.5 м) закрыты заглушками: проходов, кроме центрального, из лобби в коридор нет
+            var wallMat = Mat("Wall", Palette.Wall);
+            foreach (float sx in new[] { -19.75f, 19.75f })
+                Prim(PrimitiveType.Cube, "SideFill", root, new Vector3(sx, 1.5f, 8f), new Vector3(0.5f, 3f, 6f), wallMat);
+            // задние стены южных номеров (z=5) образуют стенку лобби с проходом по центру
             map.corridorPoint = Empty("CorridorMid", root, new Vector3(0, 0, 12.5f)).transform;     // C5: место драк
 
             // подключаем MotelMap к KeyBoard

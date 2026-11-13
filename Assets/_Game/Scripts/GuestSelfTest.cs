@@ -77,6 +77,27 @@ namespace Friendslop
             lastRoom = r.index;
         }
 
+        /// <summary>P4: гость у стойки досягаем лучом прицела и из-за стойки (сотрудник), и спереди; луч не упирается в столешницу.</summary>
+        void CheckDeskReach(Guest g)
+        {
+            var map = MotelMap.Instance;
+            if (map == null || map.receptionDesk == null) return;
+            var col = map.receptionDesk.GetComponent<Collider>();
+            float zBack = map.receptionDesk.position.z + map.receptionDesk.localScale.z * 0.5f + 0.4f + 0.05f;    // вплотную к стойке с северной стороны
+            float zFront = map.receptionDesk.position.z - map.receptionDesk.localScale.z * 0.5f - 0.5f;
+            Physics.SyncTransforms();
+            foreach (float aimY in new[] { 1.5f, 0.9f })       // грудь и ноги: низкий прицел идёт сквозь столешницу
+            {
+                var target = g.transform.position + Vector3.up * aimY;
+                var eyeBack = new Vector3(map.queuePoints[0].position.x, 1.62f, zBack);
+                var hitBack = PlayerHands.AimFrom(eyeBack, (target - eyeBack).normalized, cfg.interactDistance, null);
+                Check(col != null && ReferenceEquals(hitBack, g), $"desk reach: guest in queue is aimable from behind the desk (aim y={aimY}, dist {(target - eyeBack).magnitude:0.0} of {cfg.interactDistance})");
+                var eyeFront = new Vector3(map.queuePoints[0].position.x + 0.9f, 1.62f, zFront);
+                var hitFront = PlayerHands.AimFrom(eyeFront, (target - eyeFront).normalized, cfg.interactDistance, null);
+                Check(ReferenceEquals(hitFront, g), $"desk reach: guest in queue is aimable from the customer side (aim y={aimY})");
+            }
+        }
+
         IEnumerator Run()
         {
             gs = GameState.Instance;
@@ -99,6 +120,7 @@ namespace Friendslop
             Check(gA != null, "A spawned at entrance");
             yield return WaitFor(() => gA.State.Value == GuestState.WaitForm, 40f);
             Check(gA.State.Value == GuestState.WaitForm, "A walked to the desk, waits for form");
+            CheckDeskReach(gA);
             hands.ServerTake(new HeldItem(ItemType.Towel));
             gA.ServerInteract(hands, hands.Held.Value);
             Check(gA.State.Value == GuestState.WaitForm && hands.Held.Value.type == ItemType.Towel, "A rejects wrong item");

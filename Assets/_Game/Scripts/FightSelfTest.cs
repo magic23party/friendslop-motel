@@ -78,6 +78,12 @@ namespace Friendslop
             lastRoom = r.index;
         }
 
+        IEnumerator ExtendWhenLiving(Guest g)
+        {
+            yield return WaitFor(() => g.State.Value == GuestState.Living, 40f);
+            if (g.State.Value == GuestState.Living) g.ServerExtendStay(60f);
+        }
+
         IEnumerator Run()
         {
             gs = GameState.Instance;
@@ -196,6 +202,7 @@ namespace Friendslop
             hands.ServerClear();
             yield return CheckIn(gC, "C");
             int rC = lastRoom;
+            StartCoroutine(ExtendWhenLiving(gC));          // P4: путь до номера D длиннее — C не должен выехать раньше, чем D дойдёт
             yield return WaitFor(() => gD.State.Value == GuestState.WaitForm, 20f);
             yield return CheckIn(gD, "D");
             int rD = lastRoom;

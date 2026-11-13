@@ -98,8 +98,27 @@ namespace Friendslop.EditorTools
                     && NavMesh.CalculatePath(map.guestSpawn.position, hit.position, NavMesh.AllAreas, path) && path.status == NavMeshPathStatus.PathComplete;
                 if (!ok) { bad++; Debug.LogError("[NAVMESH] queue point " + i + " unreachable"); }
             }
+            // P4: длина пути гостя от стойки (очередь [0]) до номера и от входа до дальнего номера — для сравнения до/после правки прохода
+            float sum = 0f, max = 0f; int maxRoom = 0, cnt = 0;
+            if (NavMesh.SamplePosition(map.queuePoints[0].position, out var qh, 2f, NavMesh.AllAreas))
+                foreach (var r in Object.FindObjectsByType<Room>())
+                    if (NavMesh.SamplePosition(r.inside.position, out var rh, 2f, NavMesh.AllAreas)
+                        && NavMesh.CalculatePath(qh.position, rh.position, NavMesh.AllAreas, path) && path.status == NavMeshPathStatus.PathComplete)
+                    {
+                        float len = PathLength(path);
+                        sum += len; cnt++;
+                        if (len > max) { max = len; maxRoom = r.index; }
+                    }
+            Debug.Log($"[NAVMESH] path desk->room: avg {(cnt > 0 ? sum / cnt : 0f):0.0} m, max {max:0.0} m (room {maxRoom}), rooms {cnt}");
             NavMesh.RemoveNavMeshData(inst);
             Debug.Log($"[NAVMESH] baked, {sources.Count} sources, reachability checked {total - bad}/{total}");
+        }
+
+        static float PathLength(NavMeshPath p)
+        {
+            float l = 0f;
+            for (int i = 1; i < p.corners.Length; i++) l += Vector3.Distance(p.corners[i - 1], p.corners[i]);
+            return l;
         }
     }
 }

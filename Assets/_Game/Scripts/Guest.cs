@@ -74,6 +74,9 @@ namespace Friendslop
         Vector3 curDest;
         double stayEnd;
 
+        /// <summary>Сервер, для самотестов: продлить проживание (игровые секунды; в быстром режиме делится на TimeScale).</summary>
+        public void ServerExtendStay(float seconds) { stayEnd += seconds / TimeScale; }
+
         string lastText = "";
         float statusBaseSize;
 
