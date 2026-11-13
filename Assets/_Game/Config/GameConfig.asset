@@ -67,7 +67,7 @@ MonoBehaviour:
   throwUp: 1.5
   throwForce: 6
   hitCooldown: 0.6
-  hitDistance: 2.2
+  hitDistance: 3
   sfxVolume: 0.7
   uiVolume: 0.6
   sfxMinDistance: 2.5

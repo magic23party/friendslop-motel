@@ -13,7 +13,7 @@ namespace Friendslop
     public class BrawlDirector : MonoBehaviour
     {
         public static BrawlDirector Instance;
-        public static bool Paused = NetBootstrap.Arg("-guesttest") || NetBootstrap.Arg("-fighttest");
+        public static bool Paused = NetBootstrap.Arg("-guesttest") || NetBootstrap.Arg("-fighttest") || NetBootstrap.Arg("-hammertest");
 
         public GameConfig config;
 

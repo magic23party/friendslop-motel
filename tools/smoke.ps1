@@ -1,14 +1,16 @@
 # Дымовой прогон самотеста: powershell -ExecutionPolicy Bypass -File tools/smoke.ps1 -Test guesttest|fighttest
 # Хост + клиент в batchmode, ждём "selftest OK (all done)" в логе хоста, затем гасим процессы.
-param([string]$Test = 'guesttest', [int]$TimeoutSec = 300)
+param([string]$Test = 'guesttest', [int]$TimeoutSec = 300, [string[]]$Extra = @())
 $root = Split-Path -Parent $PSScriptRoot
 $exe = Join-Path $root 'Build\Friendslop.exe'
 $hostLog = Join-Path $root "Logs\smoke_$Test`_host.log"
 $cliLog = Join-Path $root "Logs\smoke_$Test`_client.log"
 Remove-Item $hostLog, $cliLog -Force -ErrorAction SilentlyContinue
-$h = Start-Process $exe -PassThru -ArgumentList @('-batchmode','-nographics','-autohost','-autostart',"-$Test",'-nick','Host','-logFile',"`"$hostLog`"")
+$h = Start-Process $exe -PassThru -ArgumentList (@('-batchmode','-nographics','-autohost','-autostart',"-$Test",'-nick','Host','-logFile',"`"$hostLog`"") + $Extra)
 Start-Sleep 4
-$c = Start-Process $exe -PassThru -ArgumentList @('-batchmode','-nographics','-autojoin','127.0.0.1','-nick','Client','-logFile',"`"$cliLog`"")
+$cliArgs = @('-batchmode','-nographics','-autojoin','127.0.0.1','-nick','Client','-logFile',"`"$cliLog`"")
+if ($Test -eq 'hammertest') { $cliArgs += '-hammertest'; $cliArgs += $Extra }      # владелец-клиент сам «жмёт ЛКМ»
+$c = Start-Process $exe -PassThru -ArgumentList $cliArgs
 $t = 0; $done = $false
 while ($t -lt $TimeoutSec -and -not $done) {
   Start-Sleep 3; $t += 3

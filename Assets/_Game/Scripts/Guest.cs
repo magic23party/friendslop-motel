@@ -33,7 +33,7 @@ namespace Friendslop
         public static readonly List<Guest> All = new List<Guest>();
 
         /// <summary>Самотест -guesttest: все интервалы короче в 10 раз, гости бегают втрое быстрее.</summary>
-        public static readonly bool Fast = NetBootstrap.Arg("-guesttest") || NetBootstrap.Arg("-fighttest");
+        public static readonly bool Fast = NetBootstrap.Arg("-guesttest") || NetBootstrap.Arg("-fighttest") || NetBootstrap.Arg("-hammertest");
         public static float TimeScale => Fast ? 10f : 1f;
 
         /// <summary>Счётчики для лога [STATS] (сервер): пришло / заселено / выехало и заплатило / ушло из мотеля.</summary>

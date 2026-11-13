@@ -16,6 +16,7 @@ namespace Friendslop
         public static readonly System.Collections.Generic.List<PlayerCombat> All = new System.Collections.Generic.List<PlayerCombat>();
         static readonly RaycastHit[] buf = new RaycastHit[24];
         const int HitMask = ~(1 << Items.ItemLayer);       // предметы на полу удар не перехватывают
+        static readonly bool HammerTestLog = NetBootstrap.Arg("-hammertest");
         const float SwingTime = 0.28f, FlashTime = 0.3f, SwingAngle0 = 75f;
 
         public NetworkVariable<bool> IsDown = new NetworkVariable<bool>(false);
@@ -60,6 +61,7 @@ namespace Friendslop
             pc = GetComponent<PlayerController>();
             All.Add(this);
             IsDown.OnValueChanged += OnDownChanged;
+            if (IsOwner && NetBootstrap.Arg("-hammertest")) gameObject.AddComponent<HammerSelfTest>();
         }
 
         public override void OnNetworkDespawn() { All.Remove(this); IsDown.OnValueChanged -= OnDownChanged; }
@@ -77,6 +79,7 @@ namespace Friendslop
         /// </summary>
         public bool ServerStrike(Vector3 origin, Vector3 dir)
         {
+            if (HammerTestLog) Debug.Log($"[HAMMER] ServerStrike enter {name} owner={OwnerClientId} held={hands?.Held.Value.type} down={IsDown.Value} phase={GameState.Instance?.Phase.Value} t={Time.time} next={nextHitAt}");
             if (!IsServer || !IsSpawned || hands == null || IsDown.Value) return false;
             if (hands.Held.Value.type != ItemType.Sledgehammer) return false;
             var gs = GameState.Instance;
@@ -95,10 +98,12 @@ namespace Friendslop
             float best = float.MaxValue;
             Vector3 point = origin + dir * cfg.hitDistance;
             Guest guest = null; PlayerCombat other = null;
+            var desk = MotelMap.Instance != null ? MotelMap.Instance.receptionDesk : null;
             for (int i = 0; i < n; i++)
             {
                 var h = buf[i];
                 if (h.distance >= best) continue;
+                if (desk != null && h.collider.transform == desk) continue;       // стойка ресепшена удар не гасит (как и луч прицела, P4): бьём гостя в очереди через неё
                 var self = h.collider.GetComponentInParent<PlayerCombat>();
                 if (self == this) continue;
                 best = h.distance;
@@ -106,6 +111,7 @@ namespace Friendslop
                 guest = h.collider.GetComponentInParent<Guest>();
                 other = self;                // null, если это стена/мебель — она перекрывает луч
             }
+            if (HammerTestLog) Debug.Log($"[HAMMER] ServerStrike {name} owner={OwnerClientId} origin={origin} eye={eye} dir={dir} n={n} guest={(guest != null)} other={(other != null)} point={point} dist={best}");
             if (guest != null || other != null) HitFxRpc(point);       // искры, звук и тряска у бьющего — у всех клиентов
             if (guest != null) { guest.ServerHit(hands); Debug.Log($"[FIGHT] {name} hit guest"); }
             else if (other != null)
@@ -187,6 +193,8 @@ namespace Friendslop
         }
 
         float nextLocalHit;
+        /// <summary>Самотест -hammertest: имитирует зажатую ЛКМ у владельца.</summary>
+        public bool TestFire;
 
         void Update()
         {
@@ -197,10 +205,16 @@ namespace Friendslop
                 Debug.Log($"[FIGHT] {name} regained consciousness");
             }
             if (!IsOwner || pc == null || hands == null || !pc.Placed || pc.MenuOpen || IsDown.Value) return;
-            var ms = Mouse.current;
-            if (ms == null || !Application.isFocused || pc.cam == null) return;
+            bool pressed = TestFire;        // -hammertest: «нажатая ЛКМ» без мыши, дальше тот же путь, что у живого ввода
+            if (!pressed)
+            {
+                var ms = Mouse.current;
+                if (ms == null || !Application.isFocused) return;
+                pressed = ms.leftButton.isPressed;
+            }
+            if (pc.cam == null) return;
             if (hands.Held.Value.type != ItemType.Sledgehammer) return;
-            if (ms.leftButton.isPressed && Time.time >= nextLocalHit)
+            if (pressed && Time.time >= nextLocalHit)
             {
                 nextLocalHit = Time.time + HitCooldown;
                 var t = pc.cam.transform;

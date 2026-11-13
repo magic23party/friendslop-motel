@@ -71,7 +71,7 @@ namespace Friendslop
         public float throwUp = 1.5f;              // подброс вверх при броске (G)
         public float throwForce = 6f;
         public float hitCooldown = 0.6f;
-        public float hitDistance = 2.2f;
+        public float hitDistance = 3.0f;
 
         [Header("Звук и эффекты (P3)")]
         [Range(0f, 1f)] public float sfxVolume = 0.7f;      // мир (3D): удары, звонок, касса, шаги
