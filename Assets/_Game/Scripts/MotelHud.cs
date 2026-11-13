@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace Friendslop
 {
@@ -23,6 +24,13 @@ namespace Friendslop
             var nm = NetworkManager.Singleton;
             if (gs != null && nm != null && nm.IsServer && NetBootstrap.Arg("-autostart")
                 && gs.Phase.Value == GamePhase.Lobby && gs.PlayerCount.Value >= 2)
+                gs.StartShift();
+
+            // хост: Enter в лобби — начать смену (как кнопка)
+            var kb = Keyboard.current;
+            if (gs != null && nm != null && nm.IsServer && kb != null && gs.Phase.Value == GamePhase.Lobby
+                && (kb.enterKey.wasPressedThisFrame || kb.numpadEnterKey.wasPressedThisFrame)
+                && !(PlayerController.Local != null && PlayerController.Local.MenuOpen))
                 gs.StartShift();
 
             // Game Over: курсор свободен у всех (кнопки экрана); после «Заново» — снова в игру
@@ -72,7 +80,7 @@ namespace Friendslop
                     if (nm.IsServer)
                     {
                         if (me != null && me.MenuOpen) GUI.enabled = false;
-                        if (UiStyle.Btn(new Rect(cx - 130, 62, 260, 48), "Начать смену", true)) gs.StartShift();
+                        if (UiStyle.Btn(new Rect(cx - 130, 62, 260, 48), "Начать смену (Enter)", true)) gs.StartShift();
                         GUI.enabled = true;
                     }
                     else Ui.Shadowed(new Rect(cx - 220, 52, 440, 30), "Ждём, пока хост начнёт смену…", UiStyle.Center, UiStyle.Mustard);
