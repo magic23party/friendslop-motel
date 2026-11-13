@@ -7,6 +7,9 @@ namespace Friendslop
 {
     public enum GamePhase { Lobby, Playing, GameOver }
 
+    /// <summary>V2: товары магазина. Plumber — не покупка «навсегда», а услуга (можно звать снова).</summary>
+    public enum ShopItem : byte { Cart, Coffee, Annex, Plunger, Bulbs, Plumber }
+
     /// <summary>
     /// Состояние смены (in-scene NetworkObject в Motel). Сервер-авторитет.
     /// Касса, день/ночь (V1), налог, Game Over, перезапуск.
@@ -23,6 +26,7 @@ namespace Friendslop
         static readonly bool FastTax = NetBootstrap.Arg("-fasttax");      // тест: день и ночь по 20 с
         static readonly bool FastDay = NetBootstrap.Arg("-fastday") || NetBootstrap.Arg("-daytest");   // тест: день 40 с, ночь 20 с
         static readonly bool SelfTest = NetBootstrap.Arg("-roomtest");
+        static readonly bool ShopFast = NetBootstrap.Arg("-shoptest");     // тест V2: кофе и сантехник — секунды, а не десятки секунд
 
         public GameConfig config;
 
@@ -30,6 +34,9 @@ namespace Friendslop
         /// <summary>0 пока смена не начата; потом 10 или 20 (фиксируется при старте).</summary>
         public NetworkVariable<int> RoomCount = new NetworkVariable<int>(0);
         public NetworkVariable<int> PlayerCount = new NetworkVariable<int>(0);
+        /// <summary>V2: купленные улучшения, бит = 1 &lt;&lt; (int)ShopItem (Cart, Coffee, Annex, Plunger, Bulbs). Сбрасывается с новой сменой.</summary>
+        public NetworkVariable<int> Upgrades = new NetworkVariable<int>(0);
+        int baseRooms;           // сервер: число номеров без пристройки (для «Заново»)
 
         /// <summary>Касса, $. Меняется только ServerAddMoney / ServerPayTax.</summary>
         public NetworkVariable<int> Money = new NetworkVariable<int>(0);
@@ -49,6 +56,8 @@ namespace Friendslop
 
         public float DayLength => FastDay ? 40f : FastTax ? 20f : config.dayLength;
         public float NightLength => FastDay ? 20f : FastTax ? 20f : config.nightLength;
+        public float CoffeeSeconds => ShopFast ? 4f : config.coffeeSeconds;
+        public float PlumberSeconds => ShopFast ? 4f : config.plumberSeconds;
         public float Warning => Mathf.Min(config.nightWarning, DayLength * 0.5f);
         public float Twilight => Mathf.Min(config.twilight, Mathf.Min(DayLength, NightLength) * 0.5f);
         public double Now => NetworkManager != null ? NetworkManager.ServerTime.Time : 0;
@@ -152,7 +161,7 @@ namespace Friendslop
         {
             if (!IsServer || Phase.Value != GamePhase.Lobby) return false;
             int players = NetworkManager.ConnectedClientsIds.Count;
-            RoomCount.Value = players <= config.smallTeamMax ? config.smallRooms : config.bigRooms;
+            baseRooms = RoomCount.Value = players <= config.smallTeamMax ? config.smallRooms : config.bigRooms;
             BeginShift();
             Phase.Value = GamePhase.Playing;
             Debug.Log($"[NET] shift started: players={players} rooms={RoomCount.Value}");
@@ -161,6 +170,8 @@ namespace Friendslop
 
         void BeginShift()
         {
+            Upgrades.Value = 0;
+            if (baseRooms > 0) RoomCount.Value = baseRooms;
             Money.Value = config.startMoney;
             Earned.Value = 0;
             TaxDue.Value = false;
@@ -199,6 +210,102 @@ namespace Friendslop
             return true;
         }
 
+        // ------------------------------------------------------------ магазин (V2)
+
+        public static int UpgradeBit(ShopItem i) => i == ShopItem.Plumber ? 0 : 1 << (int)i;
+        public bool Has(ShopItem i) { int b = UpgradeBit(i); return b != 0 && (Upgrades.Value & b) != 0; }
+        /// <summary>Тележка горничной куплена: расходники носятся стопкой.</summary>
+        public bool HasCart => Has(ShopItem.Cart);
+
+        public int Price(ShopItem i)
+        {
+            switch (i)
+            {
+                case ShopItem.Cart: return config.cartPrice;
+                case ShopItem.Coffee: return config.coffeePrice;
+                case ShopItem.Annex: return config.annexPrice;
+                case ShopItem.Plunger: return config.plungerPrice;
+                case ShopItem.Bulbs: return config.bulbsPrice;
+                default: return config.plumberPrice;
+            }
+        }
+
+        public static string ShopName(ShopItem i)
+        {
+            switch (i)
+            {
+                case ShopItem.Cart: return "Тележка горничной";
+                case ShopItem.Coffee: return "Кофемашина";
+                case ShopItem.Annex: return "Пристройка";
+                case ShopItem.Plunger: return "Вантуз";
+                case ShopItem.Bulbs: return "Ящик лампочек";
+                default: return "Вызов сантехника";
+            }
+        }
+
+        public string ShopInfo(ShopItem i)
+        {
+            switch (i)
+            {
+                case ShopItem.Cart: return $"в руках до {config.cartMax} одинаковых расходников стопкой; заносить — по одному (E)";
+                case ShopItem.Coffee: return $"кофемашина в лобби: чашка бесплатно, выпить — ЛКМ: скорость +{Mathf.RoundToInt(config.coffeeBonus * 100f)}% на {CoffeeSeconds:0} с";
+                case ShopItem.Annex: return $"открывает {config.annexRooms} закрытых номеров (больше работы и дохода)";
+                case ShopItem.Plunger: return $"вантуз на складе: прочистить засор — ЛКМ {config.plungeTime:0} с в номере";
+                case ShopItem.Bulbs: return "стеллаж лампочек на складе: вкрутить в номер — E у лампы";
+                default: return $"засор в номере починят через {PlumberSeconds:0} с, пока ты занят другим";
+            }
+        }
+
+        /// <summary>Номер с засором, которому ещё не вызван сантехник (null — нет).</summary>
+        public static Room ClogWithoutPlumber()
+        {
+            Room best = null;
+            foreach (var r in Room.All)
+                if (!r.Locked && r.HasClog && !r.PlumberPending && (best == null || r.index < best.index)) best = r;
+            return best;
+        }
+
+        /// <summary>Почему сейчас нельзя купить ("" — можно). Для меню и сервера.</summary>
+        public string ShopBlock(ShopItem i)
+        {
+            if (Phase.Value != GamePhase.Playing) return "Смена не идёт";
+            if (Has(i)) return "Куплено";
+            if (i == ShopItem.Annex && RoomCount.Value >= config.bigRooms) return "Нет закрытых номеров";
+            if (i == ShopItem.Plumber && ClogWithoutPlumber() == null) return "Засоров нет";
+            if (Money.Value < Price(i)) return "Не хватает денег";
+            return "";
+        }
+
+        /// <summary>Сервер: купить товар из общей кассы. false — отказ (причина в логе [SHOP]).</summary>
+        public bool ServerBuy(ShopItem item, PlayerHands who)
+        {
+            if (!IsServer || !IsSpawned) return false;
+            string nick = "Кто-то";
+            var pc = who != null ? who.GetComponent<PlayerController>() : null;
+            if (pc != null) nick = pc.Nick.Value.ToString();
+            string block = ShopBlock(item);
+            if (block != "") { Debug.Log($"[SHOP] {nick}: cannot buy {item}: {block} (money={Money.Value})"); return false; }
+            int price = Price(item);
+            Room plumberRoom = item == ShopItem.Plumber ? ClogWithoutPlumber() : null;
+            if (item == ShopItem.Plumber && (plumberRoom == null || !plumberRoom.ServerCallPlumber())) return false;
+            Money.Value -= price;
+            var map = MotelMap.Instance;
+            MoneyFxRpc(-price, map != null && map.shopTerminal != null ? map.shopTerminal.position + Vector3.up * 1.7f : CashPos());
+            if (item == ShopItem.Annex) RoomCount.Value = Mathf.Min(config.bigRooms, RoomCount.Value + config.annexRooms);
+            if (UpgradeBit(item) != 0) Upgrades.Value |= UpgradeBit(item);
+            Debug.Log($"[SHOP] {nick} bought {item} for {price} $, money={Money.Value}" + (item == ShopItem.Annex ? $", rooms={RoomCount.Value}" : "") + (plumberRoom != null ? $", plumber -> room {plumberRoom.index}" : ""));
+            ShopFeedRpc(nick, (byte)item, plumberRoom != null ? plumberRoom.index : 0);
+            return true;
+        }
+
+        [Rpc(SendTo.Everyone)]
+        void ShopFeedRpc(string nick, byte item, int room)
+        {
+            var it = (ShopItem)item;
+            MotelHud.Toast(nick + (it == ShopItem.Plumber ? $" вызвал сантехника в номер {room}" : " купил: " + ShopName(it)));
+            Sfx.Play2D(Snd.Bell, 0.6f);
+        }
+
         // ------------------------------------------------------------ конец смены
 
         /// <summary>Сервер: «Мотель закрыт». Вызывается при просроченном налоге.</summary>
@@ -216,7 +323,7 @@ namespace Friendslop
             if (!IsServer || Phase.Value != GamePhase.GameOver) return false;
             ServerRestarted?.Invoke();          // гости/драки убирают себя первыми (могут уронить предметы)
             foreach (var w in new List<WorldItem>(WorldItem.All)) if (w.IsSpawned) w.NetworkObject.Despawn();
-            foreach (var h in PlayerHands.All) h.ServerClear();
+            foreach (var h in PlayerHands.All) { h.ServerClear(); h.ServerResetBuff(); }
             var board = MotelMap.Instance != null ? MotelMap.Instance.keyBoard : null;
             if (board != null) board.ServerReset();
             BeginShift();

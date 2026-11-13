@@ -15,6 +15,7 @@ namespace Friendslop
         public Transform guestExit;
         public Transform[] queuePoints;       // очередь у стойки: [0] — первый
         public Transform taxTerminal;
+        public Transform shopTerminal;        // V2: магазин улучшений
         public Transform corridorPoint;       // середина коридора номеров (C5: место драк)
 
         void Awake()

@@ -60,6 +60,23 @@ MonoBehaviour:
   taxStep: 50
   nightWarning: 20
   twilight: 12
+  cartPrice: 150
+  cartMax: 3
+  coffeePrice: 100
+  coffeeBonus: 0.1
+  coffeeSeconds: 20
+  annexPrice: 300
+  annexRooms: 5
+  plungerPrice: 120
+  plungeTime: 3
+  bulbsPrice: 80
+  plumberPrice: 40
+  plumberSeconds: 30
+  clogFromDay: 2
+  clogChance: 0.2
+  lampFromDay: 3
+  lampChance: 0.2
+  lampPenalty: 20
   moveSpeed: 5
   runMultiplier: 1.6
   mouseSensitivity: 0.12

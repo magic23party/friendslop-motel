@@ -400,6 +400,8 @@ namespace Friendslop.EditorTools
             Box(r, "TaxCap", new Vector3(-19.3f, 1.3f, -10f), new Vector3(0.74f, 0.08f, 1.04f), Mat("TaxCap", Palette.Mustard));
             Box(r, "TaxPlate", new Vector3(-19.93f, 2.0f, -10f), new Vector3(0.05f, 0.5f, 1.8f), Mat("TaxPlate", Palette.DarkRed));
             Box(r, "StoragePlate", new Vector3(19.93f, 2.7f, -11.75f), new Vector3(0.05f, 0.5f, 3.4f), Mat("StoragePlate", Palette.TealDark));
+            Box(r, "ShopCap", new Vector3(-19.3f, 1.3f, -7.0f), new Vector3(0.74f, 0.08f, 1.04f), Mat("ShopCap", Palette.Mustard));      // V2: магазин рядом с налоговым терминалом
+            Box(r, "ShopPlate", new Vector3(-19.93f, 2.0f, -7.0f), new Vector3(0.05f, 0.5f, 1.8f), Mat("ShopPlate", Palette.TealDark));
         }
 
         // ---------------------------------------------------------------- стеллаж склада

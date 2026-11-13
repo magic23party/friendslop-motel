@@ -57,5 +57,9 @@ namespace Friendslop
         public static readonly Color Mop = new Color(0.35f, 0.72f, 0.35f);
         public static readonly Color Hammer = new Color(0.80f, 0.20f, 0.20f);
         public static readonly Color Dirt = new Color(0.60f, 0.38f, 0.16f);        // значок «грязь» на табличке номера
+        public static readonly Color Plunger = new Color(0.95f, 0.50f, 0.15f);     // V2: вантуз / значок «засор»
+        public static readonly Color Coffee = new Color(0.66f, 0.42f, 0.24f);      // V2: кофе
+        public static readonly Color Bulb = new Color(1.00f, 0.95f, 0.55f);        // V2: лампочка / значок «лампа»
+        public static readonly Color Water = new Color(0.30f, 0.48f, 0.58f);       // V2: лужа засора
     }
 }

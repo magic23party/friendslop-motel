@@ -52,6 +52,9 @@ namespace Friendslop.EditorTools
             SetHand(db, ItemType.Mop, new Vector3(-0.085f, 0f, 0.124f), new Vector3(304.5f, 55.5f, 270f));
             SetHand(db, ItemType.Sledgehammer, new Vector3(0.03f, 0.163f, 0.188f), new Vector3(48.6f, 355.3f, 349.5f));
             SetHand(db, ItemType.Money, new Vector3(0f, 0.03f, 0.06f), new Vector3(-20f, 15f, 0f));
+            SetHand(db, ItemType.Plunger, new Vector3(-0.085f, 0.02f, 0.124f), new Vector3(304.5f, 55.5f, 270f));       // V2: как швабра
+            SetHand(db, ItemType.Coffee, new Vector3(0.01f, 0.03f, 0.06f), new Vector3(-8f, 0f, 0f));
+            SetHand(db, ItemType.Bulb, new Vector3(0f, 0.03f, 0.06f), new Vector3(-12f, 0f, 0f));
             // в правой руке модели (рука вперёд на Humanoid.CarryPitch = -65): euler = желаемая ориентация в мире + 65 по X
             SetWorldHand(db, ItemType.Form, new Vector3(0f, 0.02f, 0f), new Vector3(65f - 80f, 0f, 0f));
             SetWorldHand(db, ItemType.Key, Vector3.zero, new Vector3(65f, 0f, 0f));
@@ -61,6 +64,9 @@ namespace Friendslop.EditorTools
             SetWorldHand(db, ItemType.Mop, new Vector3(0f, 0.12f, 0f), new Vector3(65f + 12f, 0f, 0f));
             SetWorldHand(db, ItemType.Sledgehammer, new Vector3(0f, 0.16f, 0f), new Vector3(65f + 25f, 0f, 0f));
             SetWorldHand(db, ItemType.Money, new Vector3(0f, 0.03f, 0f), new Vector3(65f, 0f, 0f));
+            SetWorldHand(db, ItemType.Plunger, new Vector3(0f, 0.10f, 0f), new Vector3(65f + 12f, 0f, 0f));
+            SetWorldHand(db, ItemType.Coffee, new Vector3(0f, 0.04f, 0f), new Vector3(65f, 0f, 0f));
+            SetWorldHand(db, ItemType.Bulb, new Vector3(0f, 0.04f, 0f), new Vector3(65f, 0f, 0f));
 
             db.worldItemPrefab = BuildWorldItemPrefab();
             EditorUtility.SetDirty(db);
@@ -160,6 +166,30 @@ namespace Friendslop.EditorTools
                     c2.transform.localRotation = Quaternion.Euler(0, 6f, 0);
                     Prim(PrimitiveType.Cube, "Band", tr, Vector3.zero, new Vector3(0.05f, 0.066f, 0.115f), Mat("ItemMoneyBand", new Color(0.94f, 0.90f, 0.78f)), false);
                     LabelUp(tr, "$", new Vector3(0, 0.0345f, 0), 0.05f, new Color(0.15f, 0.4f, 0.2f), "Dollar");
+                    break;
+                }
+                case ItemType.Plunger:   // V2: вантуз: деревянная ручка, оранжевая резиновая чашка с ободом
+                {
+                    var cup = Mat("ItemPlungerCup", Palette.Plunger);
+                    Prim(PrimitiveType.Cylinder, "Handle", tr, new Vector3(0, 0.05f, 0), new Vector3(0.04f, 0.46f, 0.04f), Mat("ItemWood", new Color(0.6f, 0.42f, 0.22f)));
+                    Prim(PrimitiveType.Cylinder, "Neck", tr, new Vector3(0, -0.43f, 0), new Vector3(0.075f, 0.05f, 0.075f), cup, false);
+                    Prim(PrimitiveType.Sphere, "Cup", tr, new Vector3(0, -0.52f, 0), new Vector3(0.22f, 0.15f, 0.22f), cup);
+                    Prim(PrimitiveType.Cylinder, "Rim", tr, new Vector3(0, -0.585f, 0), new Vector3(0.24f, 0.012f, 0.24f), Mat("ItemPlungerRim", Palette.Plunger * 0.75f), false);
+                    break;
+                }
+                case ItemType.Coffee:    // V2: бумажный стакан с крышкой и картонным ободком
+                {
+                    Prim(PrimitiveType.Cylinder, "Cup", tr, Vector3.zero, new Vector3(0.075f, 0.055f, 0.075f), Mat("ItemCoffeeCup", new Color(0.97f, 0.95f, 0.9f)));
+                    Prim(PrimitiveType.Cylinder, "Sleeve", tr, new Vector3(0, -0.005f, 0), new Vector3(0.081f, 0.03f, 0.081f), Mat("ItemCoffeeSleeve", Palette.Coffee), false);
+                    Prim(PrimitiveType.Cylinder, "Lid", tr, new Vector3(0, 0.058f, 0), new Vector3(0.085f, 0.008f, 0.085f), Mat("ItemCoffeeLid", Palette.MetalDark), false);
+                    Prim(PrimitiveType.Cylinder, "Sip", tr, new Vector3(0, 0.068f, 0), new Vector3(0.04f, 0.006f, 0.04f), Mat("ItemCoffeeLid", Palette.MetalDark), false);
+                    break;
+                }
+                case ItemType.Bulb:      // V2: лампочка: стеклянная колба (светится) на металлическом цоколе
+                {
+                    Prim(PrimitiveType.Sphere, "Glass", tr, new Vector3(0, 0.03f, 0), Vector3.one * 0.075f, MatE("ItemBulbGlass", Palette.Bulb, Palette.Bulb, 0.8f));
+                    Prim(PrimitiveType.Cylinder, "Neck", tr, new Vector3(0, -0.018f, 0), new Vector3(0.036f, 0.016f, 0.036f), Mat("ItemBulbBase", Palette.Metal), false);
+                    Prim(PrimitiveType.Cylinder, "Screw", tr, new Vector3(0, -0.045f, 0), new Vector3(0.033f, 0.014f, 0.033f), Mat("ItemBulbBase", Palette.Metal), false);
                     break;
                 }
             }
@@ -293,13 +323,16 @@ namespace Friendslop.EditorTools
                 (ItemType.Napkins, "Салфетки", -11.5f, Palette.Napkins),
                 (ItemType.Mop, "Швабры", -14.5f, Palette.Mop),
                 (ItemType.Sledgehammer, "Кувалды", -17f, Palette.Hammer),
+                (ItemType.Plunger, "Вантузы", -1.0f, Palette.Plunger),       // V2: появляются после покупки (UpgradeGate)
+                (ItemType.Bulb, "Лампочки", 1.0f, Palette.Bulb),
             };
             Label(root, "СКЛАД", new Vector3(19.88f, 2.7f, -11.75f), Vector3.left, 0.4f, white, "Label_Storage");
             foreach (var s in shelves)
             {
-                var sh = Empty("Shelf_" + s.Item1, root, new Vector3(19.1f, 0, s.Item3));
+                var shHolder = Empty("ShelfGate_" + s.Item1, root, new Vector3(19.1f, 0, s.Item3));
+                var sh = Empty("Shelf_" + s.Item1, shHolder.transform, Vector3.zero);
                 Prim(PrimitiveType.Cube, "Rack", sh.transform, new Vector3(0, 0.5f, 0), new Vector3(1.0f, 1.0f, 1.8f), Mat("Shelf", Palette.Metal));
-                float lift = s.Item1 == ItemType.Mop ? 0.62f : s.Item1 == ItemType.Sledgehammer ? 0.42f : 0.05f;
+                float lift = s.Item1 == ItemType.Mop || s.Item1 == ItemType.Plunger ? 0.62f : s.Item1 == ItemType.Sledgehammer ? 0.42f : 0.05f;
                 for (int k = -1; k <= 1; k++)
                 {
                     var vis = UnityEngine.Object.Instantiate(db.visuals[(int)s.Item1], sh.transform);
@@ -309,7 +342,15 @@ namespace Friendslop.EditorTools
                 }
                 Interactable<ItemSource>(sh).type = s.Item1;
                 DecorShelf(sh.transform, s.Item1, s.Item2, s.Item4);          // P1: стеллаж, коробки, цветная табличка
+                if (s.Item1 == ItemType.Plunger || s.Item1 == ItemType.Bulb)
+                {
+                    var gate = shHolder.AddComponent<UpgradeGate>();           // V2: стеллаж виден только после покупки
+                    gate.item = s.Item1 == ItemType.Plunger ? ShopItem.Plunger : ShopItem.Bulbs;
+                    gate.target = sh;
+                    sh.SetActive(false);
+                }
             }
+            BuildShopObjects(root, map, white, db);
 
             // --- налоговый терминал (запад лобби)
             var term = Empty("TaxTerminal", root, new Vector3(-19.3f, 0, -10f));
@@ -435,15 +476,15 @@ namespace Friendslop.EditorTools
             Prim(PrimitiveType.Cube, "SignDivider", t, new Vector3(-0.1f, 2.6f, -0.095f), new Vector3(0.02f, 0.5f, 0.01f), Mat("SignDivider", Palette.TealLight), false);
             room.signNumber = Label(t, index.ToString(), new Vector3(-0.64f, 2.6f, -0.1f), Vector3.back, 0.6f, Color.white, "SignNumber");
             room.signStatus = Label(t, "", new Vector3(0.55f, 2.6f, -0.1f), Vector3.back, 0.2f, new Color(1f, 0.9f, 0.5f), "SignStatus");
-            // значки «нужно занести / убрать» 2x2: полотенце, мыло, салфетки, грязь — те же цвета, что у предметов и стеллажей
-            var iconPos = new[] { new Vector2(0.32f, 2.76f), new Vector2(0.78f, 2.76f), new Vector2(0.32f, 2.44f), new Vector2(0.78f, 2.44f) };
-            room.signIcons = new GameObject[4];
-            for (int k = 0; k < 4; k++)
+            // значки на табличке 3x2: полотенце, мыло, салфетки / грязь, засор, лампа — те же цвета, что у предметов и стеллажей (V2: 6 значков)
+            room.signIcons = new GameObject[6];
+            for (int k = 0; k < 6; k++)
             {
-                var ic = Empty("SignIcon_" + k, t, new Vector3(iconPos[k].x, iconPos[k].y, -0.095f));
+                var ic = Empty("SignIcon_" + k, t, new Vector3(0.17f + 0.35f * (k % 3), 2.76f - 0.32f * (k / 3), -0.095f));
+                ic.transform.localScale = new Vector3(0.78f, 0.78f, 1f);
                 var backing = Prim(PrimitiveType.Cube, "Backing", ic.transform, Vector3.zero, new Vector3(0.42f, 0.30f, 0.012f), Mat("SignIconBack", new Color(0.03f, 0.10f, 0.12f)), false);
                 var ink = Palette.Towel;
-                if (k == 1) ink = Palette.Soap; else if (k == 2) ink = Palette.Napkins; else if (k == 3) ink = Palette.Dirt;
+                if (k == 1) ink = Palette.Soap; else if (k == 2) ink = Palette.Napkins; else if (k == 3) ink = Palette.Dirt; else if (k == 4) ink = Palette.Plunger; else if (k == 5) ink = Palette.Bulb;
                 var fill = MatE("SignIcon" + k, ink, ink, 0.5f);
                 switch (k)
                 {
@@ -459,10 +500,18 @@ namespace Friendslop.EditorTools
                         Prim(PrimitiveType.Cube, "Box", ic.transform, new Vector3(0, 0, -0.012f), new Vector3(0.25f, 0.20f, 0.016f), fill, false);
                         Prim(PrimitiveType.Cube, "Slot", ic.transform, new Vector3(0, 0.03f, -0.02f), new Vector3(0.17f, 0.03f, 0.01f), Mat("SignIconSlot", Palette.DarkRed), false);
                         break;
-                    default:    // грязь: коричневое пятно с брызгами
+                    case 3:     // грязь: коричневое пятно с брызгами
                         Prim(PrimitiveType.Sphere, "Stain", ic.transform, new Vector3(0, -0.01f, -0.012f), new Vector3(0.24f, 0.17f, 0.016f), fill, false);
                         Prim(PrimitiveType.Sphere, "Splash1", ic.transform, new Vector3(0.12f, 0.08f, -0.012f), new Vector3(0.08f, 0.07f, 0.016f), fill, false);
                         Prim(PrimitiveType.Sphere, "Splash2", ic.transform, new Vector3(-0.12f, 0.07f, -0.012f), new Vector3(0.05f, 0.045f, 0.016f), fill, false);
+                        break;
+                    case 4:     // засор: вантуз (ручка и чашка)
+                        Prim(PrimitiveType.Cube, "Handle", ic.transform, new Vector3(0, 0.05f, -0.012f), new Vector3(0.035f, 0.17f, 0.016f), Mat("SignIconWood", new Color(0.6f, 0.42f, 0.22f)), false);
+                        Prim(PrimitiveType.Sphere, "Cup", ic.transform, new Vector3(0, -0.07f, -0.012f), new Vector3(0.20f, 0.10f, 0.016f), fill, false);
+                        break;
+                    default:    // лампа: колба на цоколе
+                        Prim(PrimitiveType.Sphere, "Glass", ic.transform, new Vector3(0, 0.025f, -0.012f), new Vector3(0.17f, 0.17f, 0.016f), fill, false);
+                        Prim(PrimitiveType.Cube, "Base", ic.transform, new Vector3(0, -0.085f, -0.012f), new Vector3(0.085f, 0.055f, 0.016f), Mat("SignIconBase", Palette.Metal), false);
                         break;
                 }
                 ic.SetActive(false);
@@ -476,6 +525,95 @@ namespace Friendslop.EditorTools
             blocker.SetActive(false);
             room.blocker = blocker;
             DecorRoom(t, index, blocker);                          // P1: интерьер номера, дверная коробка, ручка
+
+            // V2 «Засор»: лужа со стоком у двери (пока HasClog), цель для вантуза. Спот живёт на всегда активной точке, коллайдер — на луже
+            var cp = Empty("ClogPoint", t, new Vector3(-0.85f, 0.03f, 2.1f));
+            var clogVis = Empty("ClogVisual", cp.transform, Vector3.zero);
+            var puddle = Prim(PrimitiveType.Cylinder, "Puddle", clogVis.transform, Vector3.zero, new Vector3(0.9f, 0.006f, 0.9f), Mat("ClogPuddle", Palette.Water), false);
+            puddle.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            Prim(PrimitiveType.Cylinder, "Drain", clogVis.transform, new Vector3(0, 0.007f, 0), new Vector3(0.22f, 0.002f, 0.22f), Mat("ClogDrain", Palette.MetalDark), false).GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            var clogCol = clogVis.AddComponent<BoxCollider>();
+            clogCol.center = new Vector3(0, 0.04f, 0); clogCol.size = new Vector3(0.9f, 0.1f, 0.9f);
+            clogVis.SetActive(false);
+            room.clogVisual = clogVis;
+            var clogSpot = Interactable<RoomSpot>(cp);
+            clogSpot.room = room; clogSpot.kind = SpotKind.Clog;
+            room.clogSpot = clogSpot;
+
+            // V2 «Лампа»: прикроватная лампа на тумбе (горит / перегорела), цель для лампочки
+            var lampOn = t.Find("LampShade");
+            if (lampOn != null)
+            {
+                GameObjectUtility.SetStaticEditorFlags(lampOn.gameObject, 0);
+                var off = Cyl(t, "LampShadeOff", lampOn.localPosition, 0.26f, 0.22f, Mat("LampShadeOff", new Color(0.24f, 0.22f, 0.19f)));
+                GameObjectUtility.SetStaticEditorFlags(off, 0);
+                off.SetActive(false);
+                room.lampOn = lampOn.gameObject;
+                room.lampOff = off;
+            }
+            var lampPoint = Empty("LampSpot", t, new Vector3(0.25f, 0.66f, 5.62f));
+            var lampCol = lampPoint.AddComponent<BoxCollider>();
+            lampCol.size = new Vector3(0.34f, 0.6f, 0.34f);
+            var lampSpot = Interactable<RoomSpot>(lampPoint);
+            lampSpot.room = room; lampSpot.kind = SpotKind.Lamp;
+            room.lampSpot = lampSpot;
+        }
+
+        /// <summary>V2: терминал «Магазин», кофемашина и тележка (появляются после покупки; стеллажи вантузов и лампочек — в цикле склада).</summary>
+        static void BuildShopObjects(Transform root, MotelMap map, Color white, ItemDb db)
+        {
+            // терминал магазина рядом с налоговым (запад лобби)
+            var shop = Empty("ShopTerminal", root, new Vector3(-19.3f, 0, -7.0f));
+            Prim(PrimitiveType.Cube, "Body", shop.transform, new Vector3(0, 0.65f, 0), new Vector3(0.7f, 1.3f, 1.0f), Mat("Terminal", Palette.MetalDark));
+            Prim(PrimitiveType.Cube, "Screen", shop.transform, new Vector3(0.36f, 0.95f, 0), new Vector3(0.04f, 0.5f, 0.7f), MatE("ShopScreen", new Color(0.95f, 0.74f, 0.2f), new Color(0.95f, 0.7f, 0.15f), 1.0f), false);
+            Label(shop.transform, "МАГАЗИН", new Vector3(0.1f, 1.9f, 0), Vector3.right, 0.35f, white);
+            Label(shop.transform, "$ улучшения $", new Vector3(0.40f, 0.95f, 0), Vector3.right, 0.09f, new Color(0.25f, 0.15f, 0f), "ScreenText");
+            map.shopTerminal = shop.transform;
+            Interactable<ShopTerminal>(shop);
+
+            // кофемашина (лобби, у западной стены; ItemSource Coffee — бесплатно, но кружку надо донести/выпить)
+            var cmGate = Empty("CoffeeGate", root, new Vector3(-19.35f, 0, -12.0f));
+            var cm = Empty("CoffeeMachine", cmGate.transform, Vector3.zero);
+            Prim(PrimitiveType.Cube, "Body", cm.transform, new Vector3(0, 0.7f, 0), new Vector3(0.6f, 1.4f, 0.85f), Mat("CoffeeBody", Palette.DarkRed));
+            Prim(PrimitiveType.Cube, "Cap", cm.transform, new Vector3(0, 1.45f, 0), new Vector3(0.66f, 0.12f, 0.9f), Mat("CoffeeCap", Palette.Mustard), false);
+            Prim(PrimitiveType.Cube, "Face", cm.transform, new Vector3(0.31f, 0.95f, 0), new Vector3(0.02f, 0.62f, 0.7f), Mat("CoffeeFace", Palette.MetalDark), false);
+            Prim(PrimitiveType.Cube, "Display", cm.transform, new Vector3(0.325f, 1.12f, 0), new Vector3(0.015f, 0.14f, 0.4f), MatE("CoffeeDisplay", new Color(0.3f, 0.8f, 0.9f), new Color(0.3f, 0.8f, 0.9f), 1.0f), false);
+            Prim(PrimitiveType.Cylinder, "Nozzle", cm.transform, new Vector3(0.38f, 0.9f, 0), new Vector3(0.08f, 0.07f, 0.08f), Mat("CoffeeMetal", Palette.Metal), false);
+            Prim(PrimitiveType.Cube, "Tray", cm.transform, new Vector3(0.42f, 0.5f, 0), new Vector3(0.36f, 0.05f, 0.5f), Mat("CoffeeMetal", Palette.Metal), false);
+            var cup = UnityEngine.Object.Instantiate(db.visuals[(int)ItemType.Coffee], cm.transform);
+            cup.name = "Cup";
+            cup.transform.localPosition = new Vector3(0.42f, 0.6f, 0);
+            foreach (var c in cup.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(c);
+            Label(cm.transform, "КОФЕ", new Vector3(0.33f, 1.3f, 0), Vector3.right, 0.16f, white);
+            Interactable<ItemSource>(cm).type = ItemType.Coffee;
+            var cmGateComp = cmGate.AddComponent<UpgradeGate>();
+            cmGateComp.item = ShopItem.Coffee; cmGateComp.target = cm;
+            cm.SetActive(false);
+
+            // тележка горничной: декор склада (без коллайдеров), эффект покупки виден и в мире, и в руках (стопка)
+            var cartGate = Empty("CartGate", root, new Vector3(16.6f, 0, -3.2f));
+            cartGate.transform.localRotation = Quaternion.Euler(0, 24f, 0);
+            var cart = Empty("Cart", cartGate.transform, Vector3.zero);
+            var cm1 = Mat("CartMetal", Palette.Metal);
+            Box(cart.transform, "Deck", new Vector3(0, 0.40f, 0), new Vector3(0.95f, 0.05f, 0.55f), cm1);
+            Box(cart.transform, "Deck2", new Vector3(0, 0.80f, 0), new Vector3(0.95f, 0.05f, 0.55f), cm1);
+            foreach (float sx in new[] { -0.45f, 0.45f })
+                foreach (float sz in new[] { -0.25f, 0.25f })
+                    Box(cart.transform, "Post", new Vector3(sx, 0.60f, sz), new Vector3(0.04f, 0.84f, 0.04f), Mat("CartPost", Palette.Mustard));
+            Box(cart.transform, "Handle", new Vector3(-0.50f, 1.05f, 0), new Vector3(0.04f, 0.04f, 0.6f), Mat("CartPost", Palette.Mustard));
+            foreach (float sx in new[] { -0.4f, 0.4f })
+                foreach (float sz in new[] { -0.27f, 0.27f })
+                    Cyl(cart.transform, "Wheel", new Vector3(sx, 0.09f, sz), 0.18f, 0.05f, Mat("CartWheel", Palette.MetalDark), new Vector3(90f, 0, 0));
+            foreach (var (it, px, py) in new[] { (ItemType.Towel, -0.2f, 0.88f), (ItemType.Towel, 0.15f, 0.88f), (ItemType.Soap, -0.2f, 0.48f), (ItemType.Napkins, 0.2f, 0.48f) })
+            {
+                var v = UnityEngine.Object.Instantiate(db.visuals[(int)it], cart.transform);
+                v.name = "CartStock";
+                v.transform.localPosition = new Vector3(px, py, 0);
+                foreach (var c in v.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(c);
+            }
+            var cartComp = cartGate.AddComponent<UpgradeGate>();
+            cartComp.item = ShopItem.Cart; cartComp.target = cart;
+            cart.SetActive(false);
         }
     }
 }

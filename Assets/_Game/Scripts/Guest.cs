@@ -33,7 +33,7 @@ namespace Friendslop
         public static readonly List<Guest> All = new List<Guest>();
 
         /// <summary>Самотест -guesttest: все интервалы короче в 10 раз, гости бегают втрое быстрее.</summary>
-        public static readonly bool Fast = NetBootstrap.Arg("-guesttest") || NetBootstrap.Arg("-fighttest") || NetBootstrap.Arg("-hammertest");
+        public static readonly bool Fast = NetBootstrap.Arg("-guesttest") || NetBootstrap.Arg("-fighttest") || NetBootstrap.Arg("-hammertest") || NetBootstrap.Arg("-shoptest");
         public static float TimeScale => Fast ? 10f : 1f;
 
         /// <summary>Счётчики для лога [STATS] (сервер): пришло / заселено / выехало и заплатило / ушло из мотеля.</summary>
@@ -411,8 +411,13 @@ namespace Friendslop
         void CheckOutFromRoom(double now)
         {
             var room = Room.Get(RoomNo.Value);
-            if (room != null) room.ServerSetNeedsService();
-            carriedMoney = config.guestPays;
+            int pay = config.guestPays;
+            if (room != null)
+            {
+                if (room.LampBroken) pay = Mathf.Max(0, pay - config.lampPenalty);        // V2: лампа перегорела — гость платит меньше
+                room.ServerSetNeedsService();
+            }
+            carriedMoney = pay;
             ticket = ++ticketCounter;            // в конец очереди
             Debug.Log($"[GUEST] #{ticket} leaves room {RoomNo.Value}, heads to check-out with {carriedMoney} $");
             Enter(GuestState.ToDesk);

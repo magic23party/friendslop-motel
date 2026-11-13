@@ -30,6 +30,10 @@ namespace Friendslop
         public NetworkVariable<HeldItem> Held = new NetworkVariable<HeldItem>(
             default, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
+        /// <summary>V2: до какого момента (ServerTime) действует кофе (+скорость); 0 — не пил.</summary>
+        public NetworkVariable<double> CoffeeEnd = new NetworkVariable<double>(
+            0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
         // клиент-владелец
         public IInteractable Target { get; private set; }
         /// <summary>Скриншоты (P3): принудительная цель под прицелом (подсветка и подсказка без мыши).</summary>
@@ -57,6 +61,13 @@ namespace Friendslop
         public bool Downed => combat != null && combat.IsDown.Value;
 
         public Vector3 Eye => transform.position + Vector3.up * EyeHeight;
+
+        double NowS => NetworkManager != null ? NetworkManager.ServerTime.Time : 0;
+        /// <summary>V2: действует ли кофе и сколько секунд осталось.</summary>
+        public bool CoffeeActive => CoffeeEnd.Value > 0 && NowS < CoffeeEnd.Value;
+        public float CoffeeLeft => CoffeeActive ? (float)(CoffeeEnd.Value - NowS) : 0f;
+        /// <summary>Множитель скорости ходьбы/бега (кофе: +coffeeBonus).</summary>
+        public float SpeedMul => CoffeeActive ? 1f + (config != null ? config.coffeeBonus : 0.1f) : 1f;
 
         public override void OnNetworkSpawn()
         {
@@ -91,7 +102,7 @@ namespace Friendslop
         {
             RefreshVisual();
             var at = transform.position + Vector3.up * 1.2f;
-            if (!now.IsNone && prev.IsNone) Sfx.Play3D(Snd.Pickup, at, 0.7f, UnityEngine.Random.Range(0.95f, 1.08f));      // взял
+            if (!now.IsNone && (prev.IsNone || (now.type == prev.type && Items.StackCount(now) > Items.StackCount(prev)))) Sfx.Play3D(Snd.Pickup, at, 0.7f, UnityEngine.Random.Range(0.95f, 1.08f));      // взял / добавил в стопку
             else if (now.IsNone && !prev.IsNone) Sfx.Play3D(Snd.Put, at, 0.7f, UnityEngine.Random.Range(0.95f, 1.05f));   // положил / отдал / бросил
         }
 
@@ -191,6 +202,28 @@ namespace Friendslop
             return h;
         }
 
+        /// <summary>Сервер (V2): занесён один расходник — из стопки (тележка) убирается один, иначе руки пустеют.</summary>
+        public void ServerConsumeOne()
+        {
+            if (!IsServer) return;
+            var h = Held.Value;
+            int n = Items.StackCount(h);
+            Held.Value = n > 1 ? Items.Stack(h.type, n - 1) : default;
+        }
+
+        /// <summary>Сервер (V2): выпить кофе из рук — +скорость на coffeeSeconds. false — в руках не кофе.</summary>
+        public bool ServerDrink()
+        {
+            if (!IsServer || Held.Value.type != ItemType.Coffee) return false;
+            var gs = GameState.Instance;
+            Held.Value = default;
+            CoffeeEnd.Value = NowS + (gs != null ? gs.CoffeeSeconds : 20f);
+            Debug.Log($"[SHOP] owner={OwnerClientId} drinks coffee: speed x{SpeedMul:0.00} for {(gs != null ? gs.CoffeeSeconds : 20f):0}s");
+            return true;
+        }
+
+        public void ServerResetBuff() { if (IsServer && CoffeeEnd.Value != 0) CoffeeEnd.Value = 0; }
+
         // ------------------------------------------------------------ игрок как цель (передать предмет)
 
         public string Hint(HeldItem held)
@@ -238,8 +271,12 @@ namespace Friendslop
 
             if (kb.eKey.wasPressedThisFrame && Target != null)
             {
-                Interact.Describe(Target, out var r, out var id);
-                InteractRpc(r, id);
+                if (Target is ShopTerminal) ShopUi.Open();         // V2: меню магазина — локально, покупка уходит RPC
+                else
+                {
+                    Interact.Describe(Target, out var r, out var id);
+                    InteractRpc(r, id);
+                }
             }
             if (kb.gKey.wasPressedThisFrame && !Held.Value.IsNone)
             {
@@ -308,14 +345,41 @@ namespace Friendslop
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
         void UseRpc(bool down, NetworkObjectReference netRef, int sceneId)
         {
-            var held = Held.Value;
-            if (held.IsNone || Downed) { UseDown = false; UseTarget = null; return; }
             var t = down ? Interact.Resolve(netRef, sceneId) : null;
             if (t != null && !InReach(t)) t = null;
+            ServerApplyUse(down, t);
+        }
+
+        /// <summary>Сервер: ЛКМ игрока (down — нажал/держит) по цели t. Вызывается из UseRpc и самотестов.</summary>
+        public void ServerApplyUse(bool down, IInteractable t)
+        {
+            var held = Held.Value;
+            if (held.IsNone || Downed) { UseDown = false; UseTarget = null; return; }
+            if (held.type == ItemType.Coffee)            // V2: кофе — ЛКМ выпить (цель не нужна)
+            {
+                if (down) ServerDrink();
+                UseDown = false; UseTarget = null;
+                return;
+            }
             UseDown = down;
             UseTarget = t;
             t?.ServerUse(this, held, down);
             ServerUsed?.Invoke(this, held, t, down);
+        }
+
+        /// <summary>Клиент-владелец (V2): купить товар (меню магазина). Сервер проверяет дистанцию до терминала и деньги.</summary>
+        public void RequestBuy(ShopItem item) { if (IsOwner) BuyRpc((byte)item); }
+
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
+        void BuyRpc(byte item)
+        {
+            if (Downed) return;
+            var gs = GameState.Instance;
+            var map = MotelMap.Instance;
+            if (gs == null || map == null || map.shopTerminal == null) return;
+            var term = map.shopTerminal.GetComponent<ShopTerminal>();
+            if (term == null || !InReach(term)) return;
+            gs.ServerBuy((ShopItem)item, this);
         }
 
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]

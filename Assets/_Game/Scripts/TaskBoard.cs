@@ -42,8 +42,14 @@ namespace Friendslop
 
             foreach (var r in Room.All)
             {
-                if (r.Locked || r.State != RoomState.NeedsService) continue;
-                into.Add(new TaskLine($"Номер {r.index}", false, r.NeedIcons()));
+                if (r.Locked) continue;
+                if (r.State == RoomState.NeedsService)
+                {
+                    string plumber = r.HasClog && r.PlumberPending ? $" · сантехник {Fmt(RoomSpot.PlumberLeft(r))}" : "";
+                    into.Add(new TaskLine($"Номер {r.index}{plumber}", false, r.NeedIcons()));
+                }
+                else if (r.LampBroken && r.State == RoomState.Ready)       // V2: лампа — номер можно сдать, но с потерей в оплате
+                    into.Add(new TaskLine($"Номер {r.index}: лампа", false, new[] { ItemType.Bulb }));
             }
         }
 

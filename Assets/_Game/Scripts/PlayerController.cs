@@ -43,6 +43,7 @@ namespace Friendslop
         CharacterController cc;
         NetworkTransform nt;
         PlayerCombat combat;
+        PlayerHands hands;
         float yaw, pitch, vy, logTimer, downBlend;
         static GUIStyle nameStyle;
         static readonly bool NetLog = NetBootstrap.Arg("-netlog");
@@ -59,6 +60,7 @@ namespace Friendslop
             cc = GetComponent<CharacterController>();
             nt = GetComponent<NetworkTransform>();
             combat = GetComponent<PlayerCombat>();
+            hands = GetComponent<PlayerHands>();
             All.Add(this);
             if (GetComponent<Footsteps>() == null) gameObject.AddComponent<Footsteps>();
             cc.enabled = false;
@@ -129,6 +131,7 @@ namespace Friendslop
                 wish = (transform.right * x + transform.forward * z);
                 if (wish.sqrMagnitude > 1f) wish.Normalize();
                 if (kb.leftShiftKey.isPressed) speed *= config.runMultiplier;
+                if (hands != null) speed *= hands.SpeedMul;          // V2: кофе
             }
 
             if (cc.isGrounded && vy < 0f) vy = -1f;
@@ -184,6 +187,7 @@ namespace Friendslop
 
         public void SetMenu(bool open)
         {
+            if (!open) ShopUi.Close();
             MenuOpen = open;
             Cursor.lockState = open ? CursorLockMode.None : CursorLockMode.Locked;
             Cursor.visible = open;

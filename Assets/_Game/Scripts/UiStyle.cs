@@ -217,6 +217,9 @@ namespace Friendslop
                 case ItemType.Mop: return Palette.Mop;
                 case ItemType.Sledgehammer: return Palette.Hammer;
                 case ItemType.Money: return new Color(0.30f, 0.78f, 0.36f);
+                case ItemType.Plunger: return Palette.Plunger;
+                case ItemType.Coffee: return Palette.Coffee;
+                case ItemType.Bulb: return Palette.Bulb;
                 default: return Color.gray;
             }
         }
@@ -233,6 +236,9 @@ namespace Friendslop
                 case ItemType.Mop: return "Ш";
                 case ItemType.Sledgehammer: return "К";
                 case ItemType.Money: return "$";
+                case ItemType.Plunger: return "В";
+                case ItemType.Coffee: return "Ч";
+                case ItemType.Bulb: return "Л";
                 default: return "";
             }
         }

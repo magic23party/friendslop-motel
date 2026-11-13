@@ -64,6 +64,25 @@ namespace Friendslop
         public float nightWarning = 20f;      // за сколько секунд до ночи предупреждать
         public float twilight = 12f;          // сколько секунд длится смена света перед ночью/утром
 
+        [Header("Магазин и новые проблемы (V2)")]
+        public int cartPrice = 150;           // тележка горничной: стопка до cartMax расходников в руках
+        public int cartMax = 3;
+        public int coffeePrice = 100;         // кофемашина в лобби
+        public float coffeeBonus = 0.10f;     // +% к скорости ходьбы/бега
+        public float coffeeSeconds = 20f;
+        public int annexPrice = 300;          // пристройка: открывает annexRooms закрытых номеров
+        public int annexRooms = 5;
+        public int plungerPrice = 120;        // вантуз: прочистка засора ЛКМ plungeTime секунд
+        public float plungeTime = 3f;
+        public int bulbsPrice = 80;           // ящик лампочек: стеллаж лампочек на складе
+        public int plumberPrice = 40;         // вызов сантехника (засор чинится сам через plumberSeconds)
+        public float plumberSeconds = 30f;
+        public int clogFromDay = 2;           // «Засор»: со 2-го дня, шанс при выезде
+        [Range(0f, 1f)] public float clogChance = 0.2f;
+        public int lampFromDay = 3;           // «Лампа»: с 3-го дня, шанс при выезде
+        [Range(0f, 1f)] public float lampChance = 0.2f;
+        public int lampPenalty = 20;          // гость в номере с перегоревшей лампой платит на столько меньше
+
         [Header("Игрок / взаимодействие")]
         public float moveSpeed = 5f;
         public float runMultiplier = 1.6f;

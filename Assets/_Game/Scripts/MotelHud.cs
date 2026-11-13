@@ -21,6 +21,14 @@ namespace Friendslop
         string bannerText = "";
         bool bannerNight;
         static GUIStyle money, valueRight;
+        static readonly List<KeyValuePair<string, float>> toasts = new List<KeyValuePair<string, float>>();
+
+        /// <summary>V2: короткое сообщение всем («Имя купил: Тележка горничной»), живёт ~5 с.</summary>
+        public static void Toast(string text)
+        {
+            toasts.Add(new KeyValuePair<string, float>(text, Time.unscaledTime + 5f));
+            if (toasts.Count > 3) toasts.RemoveAt(0);
+        }
 
         void Update()
         {
@@ -107,7 +115,7 @@ namespace Friendslop
                 else
                 {
                     DrawShiftPanel(gs);
-                    if (gs.Phase.Value == GamePhase.Playing) { DrawTasks(); DrawBanner(cx); }
+                    if (gs.Phase.Value == GamePhase.Playing) { DrawTasks(); DrawBanner(cx); DrawToasts(cx); DrawBuff(); }
                 }
             }
 
@@ -119,6 +127,8 @@ namespace Friendslop
                 DrawGameOver(gs, nm);
                 return;
             }
+
+            if (ShopUi.IsOpen) { ShopUi.Draw(); return; }          // V2: магазин вместо паузы
 
             if (me != null && me.MenuOpen)
             {
@@ -154,7 +164,9 @@ namespace Friendslop
         static void DrawHeld(float cx, float y, HeldItem held)
         {
             string name = Items.Name(held);
-            string tip = held.type == ItemType.Sledgehammer ? "ЛКМ — удар  ·  G — бросить" : "G — бросить";
+            string tip = held.type == ItemType.Sledgehammer ? "ЛКМ — удар  ·  G — бросить"
+                : held.type == ItemType.Coffee ? "ЛКМ — выпить  ·  G — бросить"
+                : "G — бросить";
             float nw = UiStyle.Header.CalcSize(new GUIContent(name)).x;
             float tw = UiStyle.Small.CalcSize(new GUIContent(tip)).x;
             float w = 58f + nw + 22f + tw + 16f;
@@ -166,6 +178,36 @@ namespace Friendslop
         }
 
         // ------------------------------------------------------------ касса, налоги, задачи, Game Over
+
+        /// <summary>V2: лента покупок/вызовов под баннером дня (кто что купил).</summary>
+        static void DrawToasts(float cx)
+        {
+            toasts.RemoveAll(t => Time.unscaledTime >= t.Value);
+            float y = 214f;
+            foreach (var t in toasts)
+            {
+                float tw = UiStyle.Label.CalcSize(new GUIContent(t.Key)).x;
+                var r = new Rect(cx - tw / 2f - 16f, y, tw + 32f, 36f);
+                UiStyle.Plate(r);
+                Ui.Shadowed(new Rect(r.x + 16f, y, tw + 8f, 36f), t.Key, UiStyle.Label, UiStyle.Mustard);
+                y += 42f;
+            }
+        }
+
+        /// <summary>V2: иконка-таймер кофе (+скорость) под панелью смены.</summary>
+        static void DrawBuff()
+        {
+            var h = PlayerHands.Local;
+            if (h == null || !h.CoffeeActive) return;
+            var gs = GameState.Instance;
+            float total = gs != null ? gs.CoffeeSeconds : 20f;
+            var r = new Rect(12f, 142f, 330f, 46f);
+            UiStyle.Plate(r);
+            UiStyle.ItemIcon(new Rect(r.x + 10f, r.y + 6f, 34f, 34f), ItemType.Coffee);
+            Ui.Shadowed(new Rect(r.x + 54f, r.y + 2f, 190f, 24f), $"Кофе: скорость +{Mathf.RoundToInt((h.SpeedMul - 1f) * 100f)}%", UiStyle.Small, UiStyle.Cream);
+            Ui.Shadowed(new Rect(r.x + 250f, r.y + 2f, 70f, 24f), TaskBoard.Fmt(h.CoffeeLeft), UiStyle.Small, UiStyle.Mustard);
+            UiStyle.Bar(new Rect(r.x + 54f, r.y + 28f, 262f, 10f), h.CoffeeLeft / Mathf.Max(0.1f, total), Palette.Coffee);
+        }
 
         void DrawBanner(float cx)
         {

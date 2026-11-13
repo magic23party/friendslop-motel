@@ -26,7 +26,11 @@ namespace Friendslop
     ///   knock 0|1                           уложить/поднять игрока
     ///   swing 0..1 | swing -1               заморозить фазу взмаха (для fp-кадра)
     ///   item Тип arg x y z yaw [pitch roll]  предмет на полу (неподвижный)
-    ///   room N ready|occupied|needs [маска] [stain]  состояние номера (таблички)
+    ///   room N ready|occupied|needs [маска] [stain] [clog] [lamp]|lamp  состояние номера (таблички); lamp — только перегоревшая лампа
+    ///   buy Cart|Coffee|Annex|Plunger|Bulbs  V2: купить товар (касса пополняется сама)
+    ///   money N                             V2: касса = N
+    ///   shop 0|1                            V2: показать меню магазина (для uishot)
+    ///   drink                               V2: выпить кофе в руках (иконка-таймер в HUD)
     ///   clearitems                          убрать такие предметы
     ///   moon интенсивность режим сила       эксперименты со светом: режим 0 нет / 1 hard / 2 soft теней
     ///   handpose Тип fp|tp px py pz ex ey ez  положение предмета в руке (подбор без пересборки; ставит и вид fp/tp)
@@ -269,12 +273,36 @@ namespace Friendslop
                     {
                         string st = s.Length > 2 ? s[2] : "ready";
                         if (st == "occupied") r.ServerSetOccupied();
-                        else if (st == "needs") r.ServerSetNeedsService((int)F(s, 3), s.Length > 4 && s[4] == "stain");
+                        else if (st == "needs") r.ServerSetNeedsService((int)F(s, 3), Array.IndexOf(s, "stain") > 3, Array.IndexOf(s, "clog") > 3, Array.IndexOf(s, "lamp") > 3);
+                        else if (st == "lamp") r.ServerBreakLamp();
                         else r.ServerSetReady();
                     }
                     yield return null;
                     break;
                 }
+                case "buy":           // buy Cart|Coffee|Annex|Plunger|Bulbs
+                {
+                    var gs = GameState.Instance;
+                    if (gs != null && s.Length > 1 && Enum.TryParse<ShopItem>(s[1], true, out var si))
+                    {
+                        gs.Money.Value = 5000;
+                        gs.ServerBuy(si, PlayerHands.Local);
+                    }
+                    yield return new WaitForSeconds(0.3f);
+                    break;
+                }
+                case "money":
+                    if (GameState.Instance != null) GameState.Instance.Money.Value = (int)F(s, 1);
+                    yield return null;
+                    break;
+                case "shop":
+                    ShopUi.Shot = s.Length > 1 && s[1] == "1";
+                    yield return null;
+                    break;
+                case "drink":
+                    if (PlayerHands.Local != null) PlayerHands.Local.ServerDrink();
+                    yield return null;
+                    break;
                 case "slab":          // slab y толщина — невидимая плита-тень над мотелем (эксперимент с протечкой лунного света)
                 {
                     var sl = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -440,7 +468,7 @@ namespace Friendslop
                     list.Add(new[] { "shot", p.name, p.pos.x.ToString(CI), p.pos.y.ToString(CI), p.pos.z.ToString(CI), p.look.x.ToString(CI), p.look.y.ToString(CI), p.look.z.ToString(CI), p.fov.ToString(CI) });
                 return list;
             }
-            var known = new HashSet<string> { "shot", "shotfp", "wait", "spawner", "guest", "clearguests", "held", "view", "player", "knock", "swing", "item", "clearitems", "moon", "toggle", "handpose", "slab", "room", "handaim", "guestlive", "cam", "uishot", "uishotfp", "hl", "fx", "taxdue", "gameover", "daynight" };
+            var known = new HashSet<string> { "shot", "shotfp", "wait", "spawner", "guest", "clearguests", "held", "view", "player", "knock", "swing", "item", "clearitems", "moon", "toggle", "handpose", "slab", "room", "handaim", "guestlive", "cam", "uishot", "uishotfp", "hl", "fx", "taxdue", "gameover", "daynight", "buy", "money", "shop", "drink" };
             foreach (var raw in File.ReadAllLines(file))
             {
                 var line = raw.Trim();
