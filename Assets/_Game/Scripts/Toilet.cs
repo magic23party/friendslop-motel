@@ -5,35 +5,21 @@ namespace Friendslop
 {
     /// <summary>
     /// V3: общий туалет в лобби (in-scene NetworkObject). Не сдаётся и ключей не имеет — пачкается и засоряется так же, как номер
-    /// (общая механика DirtySite: пятно — швабра, засор — вантуз или сантехник из магазина). Чистый туалет через toiletDirtyMin..Max
-    /// секунд пачкается (пятно); со 2-го дня при этом может быть ещё и засор. Пока он грязный или засорён, терпение гостей у стойки
-    /// тает в toiletPatienceMul раз быстрее (Guest). Задача — в списке TaskBoard (электронная таблица за ресепшеном).
+    /// (общая механика DirtySite: пятно — швабра, засор — вантуз или сантехник из магазина). V6: сам по таймеру не пачкается — его посещают
+    /// живущие гости (Guest): за визит с шансом toiletDirtyChance остаётся пятно, со 2-го дня с шансом toiletVisitClogChance — засор
+    /// (ServerGuestVisited). К засорённому туалету гость подходит, стоит у двери и уходит недовольным. Пока туалет грязный или засорён,
+    /// терпение гостей у стойки тает в toiletPatienceMul раз быстрее (Guest). Задача — в списке TaskBoard (электронная таблица за ресепшеном).
     /// </summary>
     public class Toilet : DirtySite
     {
         public static Toilet Instance;
 
-        static readonly string[] TestFlags = { "-guesttest", "-fighttest", "-hammertest", "-shoptest", "-roomtest", "-daytest" };
-        static bool? autoDirty;
-        /// <summary>Самотест: принудительно включить/выключить таймер загрязнения (null — по флагам запуска).</summary>
-        public static bool? AutoOverride;
-        /// <summary>Само пачкается по таймеру. Выключено в чужих самотестах (они считают задачи и терпение гостей), включено в -toilettest.</summary>
-        public static bool AutoDirty
-        {
-            get
-            {
-                if (AutoOverride.HasValue) return AutoOverride.Value;
-                if (autoDirty == null)
-                {
-                    bool off = false;
-                    foreach (var f in TestFlags) off |= NetBootstrap.Arg(f);
-                    autoDirty = !off || NetBootstrap.Arg("-toilettest");
-                }
-                return autoDirty.Value;
-            }
-        }
-
         public Transform inside;          // точка внутри у двери (проверка достижимости, самотест)
+
+        /// <summary>V6: точка в холле перед дверью (куда идёт гость; у засорённого туалета он стоит здесь).</summary>
+        public Vector3 DoorPoint => transform.TransformPoint(new Vector3(0f, 0f, 3.3f));
+        /// <summary>V6: где стоит гость внутри (два места, чтобы двое не слипались).</summary>
+        public Vector3 VisitSpot(int slot) => transform.TransformPoint(slot % 2 == 0 ? new Vector3(0f, 0f, -0.2f) : new Vector3(-0.6f, 0f, 0.6f));
         public TextMesh signStatus;       // табличка над дверью: ЧИСТО / ГРЯЗНО / ЗАСОР
         public Renderer signLamp;         // «светофор» над дверью: цвет по состоянию
         public Material[] lampMats;       // 0 чисто, 1 грязно, 2 засор
@@ -55,8 +41,6 @@ namespace Friendslop
         }
 
         TaskBoard.Provider provider;
-        float nextDirtyAt = -1f;
-        bool wasDirty;
         int lastKey = -1;
 
         public override void OnNetworkSpawn()
@@ -75,22 +59,13 @@ namespace Friendslop
 
         // ------------------------------------------------------------ сервер
 
-        float Interval()
-        {
-            var cfg = Cfg;
-            float a = cfg != null ? cfg.toiletDirtyMin : 60f, b = cfg != null ? cfg.toiletDirtyMax : 90f;
-            return Random.Range(a, Mathf.Max(a, b)) / Guest.TimeScale;
-        }
-
-        /// <summary>Сервер: туалет чистый, таймер заново (новая смена, «Заново»).</summary>
+        /// <summary>Сервер: туалет чистый (новая смена, «Заново»).</summary>
         public void ServerReset()
         {
             if (!IsServer || !IsSpawned) return;
             ResetMessProgress();
             StainVar.Value = false;
             ClogVar.Value = false;
-            wasDirty = false;
-            nextDirtyAt = -1f;
         }
 
         /// <summary>Сервер: детерминированно испачкать (тесты, скриншоты).</summary>
@@ -103,16 +78,23 @@ namespace Friendslop
             if (log) Debug.Log($"[TOILET] dirty: stain={stain} clog={clog}");
         }
 
-        /// <summary>Сервер: одно «загрязнение» как по таймеру — пятно, со 2-го дня иногда и засор (самотест гоняет это много раз).</summary>
-        public void ServerRollDirty() { if (IsServer && IsSpawned) MakeDirty(false); }
-
-        void MakeDirty(bool log = true)
+        /// <summary>
+        /// Сервер: гость побывал в туалете. С шансом toiletDirtyChance остаётся пятно, со 2-го дня с шансом toiletVisitClogChance — засор
+        /// (уже имеющееся не убирается). Возвращает true, если туалет стал грязнее.
+        /// </summary>
+        public bool ServerGuestVisited(bool log = true)
         {
+            if (!IsServer || !IsSpawned) return false;
             var cfg = Cfg;
             var gs = GameState.Instance;
+            if (cfg == null) return false;
             int day = gs != null ? gs.Day.Value : 1;
-            bool clog = cfg != null && day >= cfg.toiletClogFromDay && Random.value < cfg.toiletClogChance;
-            ServerSetDirty(true, clog, log);
+            bool stain = !HasStain && Random.value < cfg.toiletDirtyChance;
+            bool clog = !HasClog && day >= cfg.toiletClogFromDay && Random.value < cfg.toiletVisitClogChance;
+            if (!stain && !clog) return false;
+            bool wasStain = HasStain, wasClog = HasClog;
+            ServerSetDirty(wasStain || stain, wasClog || clog, log);
+            return true;
         }
 
         void Update()
@@ -122,16 +104,7 @@ namespace Friendslop
             RefreshView();
         }
 
-        void ServerTick()
-        {
-            ServerTickMess();
-            var gs = GameState.Instance;
-            if (gs == null || gs.Phase.Value != GamePhase.Playing) { nextDirtyAt = -1f; return; }
-            bool dirty = Dirty;
-            if (nextDirtyAt < 0f || (wasDirty && !dirty)) nextDirtyAt = Time.time + Interval();
-            wasDirty = dirty;
-            if (!dirty && AutoDirty && Time.time >= nextDirtyAt) MakeDirty();
-        }
+        void ServerTick() { ServerTickMess(); }
 
         // ------------------------------------------------------------ список задач и вид
 

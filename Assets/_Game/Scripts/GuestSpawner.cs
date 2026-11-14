@@ -12,7 +12,7 @@ namespace Friendslop
     public class GuestSpawner : MonoBehaviour
     {
         public static GuestSpawner Instance;
-        public static bool Paused = NetBootstrap.Arg("-guesttest") || NetBootstrap.Arg("-fighttest") || NetBootstrap.Arg("-hammertest") || NetBootstrap.Arg("-shoptest") || NetBootstrap.Arg("-toilettest");
+        public static bool Paused = NetBootstrap.Arg("-guesttest") || NetBootstrap.Arg("-fighttest") || NetBootstrap.Arg("-hammertest") || NetBootstrap.Arg("-shoptest") || NetBootstrap.Arg("-toilettest") || NetBootstrap.Arg("-dirttest");
 
         public GameConfig config;
         public GameObject guestPrefab;
@@ -38,6 +38,7 @@ namespace Friendslop
                 if (NetBootstrap.Arg("-hammertest")) gameObject.AddComponent<HammerServerTest>();
                 if (NetBootstrap.Arg("-shoptest")) gameObject.AddComponent<ShopSelfTest>();
                 if (NetBootstrap.Arg("-toilettest")) gameObject.AddComponent<ToiletSelfTest>();
+                if (NetBootstrap.Arg("-dirttest")) gameObject.AddComponent<DirtSelfTest>();
             }
 
             if (gs.Phase.Value != GamePhase.Playing) { wasPlaying = false; wasNight = false; return; }
@@ -66,15 +67,15 @@ namespace Friendslop
             return Mathf.Max(1f, b + Random.Range(-j, j)) / Guest.TimeScale;
         }
 
-        /// <summary>Сервер: создать гостя у входа. nonPayer=null — по шансу из GameConfig.</summary>
-        public Guest ServerSpawn(bool? nonPayer = null)
+        /// <summary>Сервер: создать гостя у входа. nonPayer=null — по шансу из GameConfig; dirty=null — «грязный» по шансу (в самотестах и скриншотах — нет).</summary>
+        public Guest ServerSpawn(bool? nonPayer = null, bool? dirty = null)
         {
             var nm = NetworkManager.Singleton;
             var map = MotelMap.Instance;
             if (nm == null || !nm.IsServer || map == null || guestPrefab == null) return null;
             var go = Instantiate(guestPrefab, map.guestSpawn.position, map.guestSpawn.rotation);
             var g = go.GetComponent<Guest>();
-            g.ServerInit(nonPayer ?? Random.value < config.nonPayerChance);
+            g.ServerInit(nonPayer ?? Random.value < config.nonPayerChance, dirty ?? (Guest.RandomDirty && Random.value < config.dirtyGuestChance));
             Guest.StatSpawned++;
             go.GetComponent<NetworkObject>().Spawn();
             return g;

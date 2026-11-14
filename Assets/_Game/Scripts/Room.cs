@@ -41,7 +41,7 @@ namespace Friendslop
         public NetworkVariable<byte> StateVar = new NetworkVariable<byte>((byte)RoomState.Ready);
         /// <summary>Бит i = расходник SupplyTypes[i] ещё надо занести.</summary>
         public NetworkVariable<byte> MissingVar = new NetworkVariable<byte>(0);
-        /// <summary>V2 «Лампа»: переживает заселение; номер можно сдать, но гость платит на lampPenalty меньше.</summary>
+        /// <summary>V2 «Лампа»: переживает заселение; для гостя это одна из проблем номера (V6).</summary>
         public NetworkVariable<bool> LampVar = new NetworkVariable<bool>(false);
 
         public RoomState State => (RoomState)StateVar.Value;
@@ -142,10 +142,27 @@ namespace Friendslop
         /// <summary>Сервер: всё починено и убрано (новая смена): сбрасывает и засор, и лампу.</summary>
         public void ServerSetReady() { ServerSetState(RoomState.Ready, 0, false, false, false); }
 
-        /// <summary>Сервер: в номер заехал гость (перегоревшая лампа остаётся — гость заплатит меньше).</summary>
-        public void ServerSetOccupied() { ServerSetState(RoomState.Occupied, 0, false, false, LampBroken); }
+        /// <summary>
+        /// Сервер: в номер заехал гость. V6: проблемы неготового номера (недостающее, пятно, засор, лампа) остаются как были —
+        /// гость сочтёт их при входе (ProblemCount), а после выезда они сольются с новыми.
+        /// </summary>
+        public void ServerSetOccupied() { ServerSetState(RoomState.Occupied, Missing, HasStain, HasClog, LampBroken); }
 
-        /// <summary>Сервер: гость выехал — случайный набор недостающего (GameConfig) + шанс пятна.</summary>
+        /// <summary>V6: сколько проблем увидит гость: каждый недостающий расходник, грязь, засор и лампа — по одной.</summary>
+        public int ProblemCount
+        {
+            get
+            {
+                int n = (HasStain ? 1 : 0) + (HasClog ? 1 : 0) + (LampBroken ? 1 : 0);
+                for (int i = 0; i < SupplyTypes.Length; i++) if (Needs(i)) n++;
+                return n;
+            }
+        }
+
+        /// <summary>V6: номер открыт и не занят — его ключ можно отдать гостю, даже если он не готов (риск: проблемы считаются при входе).</summary>
+        public bool CanAssign => !Locked && State != RoomState.Occupied;
+
+        /// <summary>Сервер: гость выехал — случайный набор недостающего (GameConfig) + шанс пятна; прежние проблемы (V6) остаются.</summary>
         public void ServerSetNeedsService()
         {
             var cfg = Cfg;
@@ -165,7 +182,8 @@ namespace Friendslop
             int day = gs != null ? gs.Day.Value : 1;
             bool clog = cfg != null && day >= cfg.clogFromDay && Random.value < cfg.clogChance;
             bool lamp = LampBroken || (cfg != null && day >= cfg.lampFromDay && Random.value < cfg.lampChance);
-            ServerSetNeedsService(mask, Random.value < stainChance, clog, lamp);
+            // V6: проблемы, с которыми номер заселяли (Occupied хранит их в тех же полях), остаются и складываются с новыми
+            ServerSetNeedsService(mask | Missing, HasStain || Random.value < stainChance, HasClog || clog, lamp);
         }
 
         /// <summary>Сервер: детерминированный вариант (тесты). Пустой набор без пятна и засора — сразу Ready (лампа на готовность не влияет; lamp=null — не менять).</summary>

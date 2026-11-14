@@ -1,0 +1,19 @@
+# V6: грязь на полу, злой смайлик «−N% $», гость у туалета
+# запуск: powershell -ExecutionPolicy Bypass -File tools/shots.ps1 -Label v6 -ShotFile tools/shots_v6.txt
+spawner off
+view fp
+daynight day
+# след грязи в коридоре номеров и в холле
+dirt -9 0 12.5  -6 0 12.3  -3 0 12.6  0 0 12.4  3 0 12.5
+dirt 11 0 -17  8.5 0 -15.8  5.5 0 -16.5  2.5 0 -15.2
+shot v6_dirt_corridor -14.5 1.75 12.4 4 0.4 12.5 66
+shot v6_dirt_hall 12 2.0 -20 2.5 0.3 -15.8 70
+# злой смайлик и «−50% $» над гостем у стойки (выезд), второй — «−100% $»
+guest 4242 0.0 0 -14.3 0 checkout50
+guest 777 -1.2 0 -15.4 0 checkout100
+shot v6_angry_50 3.0 2.4 -18.8 -0.4 2.5 -14.6 56
+# гость у засорённого туалета (постоит у двери и уйдёт недовольным)
+clearguests
+toilet clog
+guest 909 -11 0 -14.4 180 toiletclog
+shot v6_toilet_guest -7.8 1.9 -11.2 -11 1.7 -15.2 62

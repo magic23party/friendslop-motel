@@ -13,7 +13,27 @@ namespace Friendslop.EditorTools
     {
         const string GuestPath = PrefabDir + "/Guest.prefab";
         const string NavDataPath = SceneDir + "/MotelNavMesh.asset";
-        static GameObject guestPrefabBuilt;
+        const string DirtPath = PrefabDir + "/Dirt.prefab";
+        static GameObject guestPrefabBuilt, dirtPrefabBuilt;
+
+        /// <summary>V6: сетевой префаб пятна грязи на полу (плоский блин с тонким коллайдером для швабры; спавнит сервер).</summary>
+        static GameObject BuildDirtPrefab(GameConfig cfg)
+        {
+            var root = new GameObject("Dirt");
+            root.AddComponent<NetworkObject>();
+            var d = root.AddComponent<DirtStain>();
+            var vis = Prim(PrimitiveType.Cylinder, "Visual", root.transform, new Vector3(0f, 0.012f, 0f), new Vector3(0.9f, 0.01f, 0.9f), Mat("DirtStain", new Color(0.30f, 0.20f, 0.09f)), false);
+            vis.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            var col = vis.AddComponent<BoxCollider>();          // плоский (≈2 см): не мешает ходить, цель для швабры; лучи E его не видят без швабры (PlayerHands.AimFrom)
+            col.size = new Vector3(1f, 2f, 1f);
+            d.visual = vis.transform;
+            var prefab = PrefabUtility.SaveAsPrefabAsset(root, DirtPath);
+            Object.DestroyImmediate(root);
+            dirtPrefabBuilt = prefab;
+            cfg.dirtPrefab = prefab;
+            EditorUtility.SetDirty(cfg);
+            return prefab;
+        }
 
         static GameObject BuildGuestPrefab(GameConfig cfg)
         {
@@ -106,6 +126,15 @@ namespace Friendslop.EditorTools
                     && NavMesh.CalculatePath(map.guestSpawn.position, hit.position, NavMesh.AllAreas, path) && path.status == NavMeshPathStatus.PathComplete;
                 if (!ok) { bad++; Debug.LogError("[NAVMESH] toilet unreachable from entrance"); }
                 else Debug.Log($"[NAVMESH] path entrance->toilet: {PathLength(path):0.0} m");
+                // V6: гости ходят в туалет — дверь и оба места внутри достижимы от входа, и обратно к номеру
+                var wcPoints = new[] { wc.DoorPoint, wc.VisitSpot(0), wc.VisitSpot(1) };
+                for (int k = 0; k < wcPoints.Length; k++)
+                {
+                    total++;
+                    bool okp = NavMesh.SamplePosition(wcPoints[k], out var ph, 1.0f, NavMesh.AllAreas)
+                        && NavMesh.CalculatePath(map.guestSpawn.position, ph.position, NavMesh.AllAreas, path) && path.status == NavMeshPathStatus.PathComplete;
+                    if (!okp) { bad++; Debug.LogError("[NAVMESH] toilet visit point " + k + " unreachable (" + wcPoints[k] + ")"); }
+                }
             }
             // V3: путь от двери до стойки (первое место очереди) — заметный, ~10–15 м (тамбур и холл)
             if (NavMesh.SamplePosition(map.guestSpawn.position, out var sh, 2f, NavMesh.AllAreas) && NavMesh.SamplePosition(map.queuePoints[0].position, out var dh, 2f, NavMesh.AllAreas)

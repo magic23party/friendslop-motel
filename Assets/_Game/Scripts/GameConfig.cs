@@ -81,15 +81,29 @@ namespace Friendslop
         [Range(0f, 1f)] public float clogChance = 0.2f;
         public int lampFromDay = 3;           // «Лампа»: с 3-го дня, шанс при выезде
         [Range(0f, 1f)] public float lampChance = 0.2f;
-        public int lampPenalty = 20;          // гость в номере с перегоревшей лампой платит на столько меньше
 
         [Header("Мир (V3): туалет, табло, защита от стан-лока")]
-        public float toiletDirtyMin = 60f, toiletDirtyMax = 90f;   // чистый туалет пачкается через столько секунд
-        public int toiletClogFromDay = 2;     // со 2-го дня при загрязнении может быть ещё и засор
-        [Range(0f, 1f)] public float toiletClogChance = 0.35f;
+        public int toiletClogFromDay = 2;     // со 2-го дня визит в туалет может закончиться засором
         public float toiletPatienceMul = 1.5f;// пока туалет грязный/засорён, терпение гостей у стойки тает во столько раз быстрее
         public float wakeInvuln = 0.5f;       // после пробуждения игрок неуязвим столько секунд (ни гость, ни коллега не оглушат)
         public float boardRefresh = 0.25f;    // табло и электронная таблица обновляются не чаще, чем раз в N с
+
+        [Header("Грязь и гости (V6)")]
+        public float toiletVisitMin = 60f, toiletVisitMax = 120f;  // живущий гость идёт в туалет раз в столько секунд
+        public int toiletMaxGuests = 2;       // не больше стольких гостей в туалете одновременно
+        public float toiletStayMin = 5f, toiletStayMax = 10f;      // сколько гость стоит в туалете
+        public float toiletBlockedStay = 3f;  // у засорённого туалета гость постоит у двери и уйдёт недовольным
+        [Range(0f, 1f)] public float toiletDirtyChance = 0.3f;     // шанс оставить пятно за один визит
+        [Range(0f, 1f)] public float toiletVisitClogChance = 0.1f; // шанс засора за визит (со toiletClogFromDay-го дня)
+        [Range(0f, 1f)] public float dirtyGuestChance = 0.1f;      // доля «грязных» гостей: оставляют следы на полу
+        public float dirtStep = 3f;           // пятно грязи каждые N метров пути
+        public int dirtMaxPerGuest = 8;       // не больше стольких пятен от одного гостя
+        public float dirtMopTime = 2f;        // сколько держать ЛКМ со шваброй на пятне грязи, с
+        public int dirtThreshold = 6;         // столько пятен на полу и больше — гости у стойки нетерпеливее
+        public float dirtPatienceMul = 1.5f;  // во столько раз быстрее тает терпение (складывается с туалетным: избытки над 1 суммируются)
+        [Range(0f, 1f)] public float oneProblemPayCut = 0.5f;      // гость в номере с 1 проблемой платит на столько меньше
+        public int noPayProblems = 2;         // от стольких проблем гость не платит вовсе
+        [HideInInspector] public GameObject dirtPrefab;            // сетевой префаб пятна грязи (ставит Builder)
 
         [Header("Игрок / взаимодействие")]
         public float moveSpeed = 5f;

@@ -17,7 +17,9 @@ namespace Friendslop
     ///   shotfp имя                          снимок камерой игрока (вид от 1-го лица, viewmodel)
     ///   wait с                              подождать
     ///   spawner off                         не спавнить гостей
-    ///   guest сид x y z yaw [down|brawl]    поставить замороженного гостя с видом по сиду
+    ///   guest сид x y z yaw [down|brawl|checkout50|checkout100|toilet|toiletclog]  поставить замороженного гостя с видом по сиду
+    ///                                       (V6: checkout50/100 — у стойки со злым смайликом и «−N% $», toilet/toiletclog — в туалете / у засорённого)
+    ///   dirt x y z [x y z ...]              V6: пятна грязи на полу (серверные сетевые объекты, моются шваброй); cleardirt — убрать все
     ///   guestlive                           обычный гость (идёт к очереди, видна ходьба)
     ///   clearguests                         убрать поставленных гостей
     ///   held Тип [arg] | held none          предмет в руках хоста (Key 7, Money 50, Sledgehammer...)
@@ -108,7 +110,7 @@ namespace Friendslop
             if (PlayerController.Local == null || GameState.Instance == null) { Fail("no player/state after 40 s"); yield break; }
 
             GameState.Instance.StartShift();
-            Toilet.AutoOverride = false;                 // V3: туалет пачкается только командой toilet
+            // V3/V6: туалет пачкается только командой toilet (в режиме -shot гости в туалет не ходят, случайные «грязные» гости не приходят)
             var hud = FindAnyObjectByType<MotelHud>();
             if (hud != null) hud.enabled = false;
             pl = PlayerController.Local;
@@ -182,6 +184,17 @@ namespace Friendslop
                     yield return null;
                     break;
                 }
+                case "dirt":
+                {
+                    var cfg = GameState.Instance != null ? GameState.Instance.config : null;
+                    for (int i = 1; i + 2 < s.Length; i += 3) DirtStain.ServerSpawn(cfg, new Vector3(F(s, i), F(s, i + 1), F(s, i + 2)));
+                    yield return null;
+                    break;
+                }
+                case "cleardirt":
+                    DirtStain.ServerRemoveAll();
+                    yield return null;
+                    break;
                 case "clearguests":
                     foreach (var g in staged) if (g != null && g.IsSpawned) g.ServerDespawn();
                     staged.Clear();
@@ -492,7 +505,7 @@ namespace Friendslop
                     list.Add(new[] { "shot", p.name, p.pos.x.ToString(CI), p.pos.y.ToString(CI), p.pos.z.ToString(CI), p.look.x.ToString(CI), p.look.y.ToString(CI), p.look.z.ToString(CI), p.fov.ToString(CI) });
                 return list;
             }
-            var known = new HashSet<string> { "shot", "shotfp", "wait", "spawner", "guest", "clearguests", "held", "view", "player", "knock", "swing", "item", "clearitems", "moon", "toggle", "handpose", "slab", "room", "handaim", "guestlive", "cam", "uishot", "uishotfp", "hl", "fx", "taxdue", "gameover", "daynight", "buy", "money", "shop", "drink", "toilet", "howto", "phase" };
+            var known = new HashSet<string> { "shot", "shotfp", "wait", "spawner", "guest", "clearguests", "held", "view", "player", "knock", "swing", "item", "clearitems", "moon", "toggle", "handpose", "slab", "room", "handaim", "guestlive", "cam", "uishot", "uishotfp", "hl", "fx", "taxdue", "gameover", "daynight", "buy", "money", "shop", "drink", "toilet", "howto", "phase", "dirt", "cleardirt" };
             foreach (var raw in File.ReadAllLines(file))
             {
                 var line = raw.Trim();

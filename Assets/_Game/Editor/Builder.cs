@@ -35,6 +35,7 @@ namespace Friendslop.EditorTools
             var player = BuildPlayerPrefab(cfg);
             var db = BuildItems();                       // C2: визуалы предметов + сетевой префаб предмета на полу
             BuildGuestPrefab(cfg);                       // C4: сетевой префаб гостя
+            BuildDirtPrefab(cfg);                        // V6: сетевой префаб пятна грязи
             var list = BuildNetworkPrefabsList(player, db.worldItemPrefab);
             var net = BuildNetPrefab(cfg, player, list);
             BuildFxAssets(cfg);                          // P3: материалы эффектов (искры, всплывашки)
@@ -198,6 +199,7 @@ namespace Friendslop.EditorTools
             list.Add(new NetworkPrefab { Prefab = player });
             list.Add(new NetworkPrefab { Prefab = worldItem });   // сюда же дописывают свои сетевые префабы следующие карточки
             if (guestPrefabBuilt != null) list.Add(new NetworkPrefab { Prefab = guestPrefabBuilt });
+            if (dirtPrefabBuilt != null) list.Add(new NetworkPrefab { Prefab = dirtPrefabBuilt });
             EditorUtility.SetDirty(list);
             return list;
         }

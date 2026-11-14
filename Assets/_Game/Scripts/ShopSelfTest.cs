@@ -7,7 +7,7 @@ namespace Friendslop
     /// Самотест V2 (флаг -shoptest, только на хосте; гости в 10 раз быстрее, кофе и сантехник — секунды).
     /// Серверные методы те же, что у игрока: ItemSource / RoomSpot / PlayerHands.ServerApplyUse / GameState.ServerBuy.
     /// Покупка каждого товара списывает деньги и даёт эффект (стопка из 3, кофе +10% и его конец, номера 11–15, вантуз, сантехник,
-    /// лампочка); нехватка денег — отказ; засор не даёт заселить, гость с лампой платит на lampPenalty меньше; «Заново» сбрасывает покупки.
+    /// лампочка); нехватка денег — отказ; засор — проблема номера (V6: неготовый номер всё же можно выдать); гость с лампой (1 проблема) платит на 50 % меньше; «Заново» сбрасывает покупки.
     /// Итог — строка "[SHOP] selftest OK (all done)" или "FAIL count=N".
     /// </summary>
     public class ShopSelfTest : MonoBehaviour
@@ -152,12 +152,13 @@ namespace Friendslop
             Check(anyAnnex && !anyBeyond, "guests can be given rooms 11..15 (and never 16+)");
             Check(!Buy(ShopItem.Annex, 1000) && gs.Money.Value == 1000 && gs.ShopBlock(ShopItem.Annex) == "Куплено", "annex cannot be bought twice");
 
-            // ================= G: засор не даёт заселить; гость в номере с лампой платит на lampPenalty меньше (в номере из пристройки)
+            // ================= G: V6: засорённый номер не «готов» (в выдачу по PickReady не попадает), но ключ можно отдать; гость в номере с лампой (1 проблема) платит на 50 % меньше (номер из пристройки)
             Room.Get(13).ServerSetNeedsService(0, false, true);
             Check(!Room.Get(13).IsReady && Room.Get(13).State == RoomState.NeedsService && Room.Get(13).HasClog, "room 13 clogged: NeedsService, not Ready");
             bool pickedClogged = false;
             for (int i = 0; i < 300; i++) { var pr = Room.PickReady(board); if (pr != null && pr.index == 13) pickedClogged = true; }
-            Check(!pickedClogged, "clogged room is never offered to a guest");
+            Check(!pickedClogged, "clogged room is never picked as a ready room");
+            Check(Room.Get(13).CanAssign && Room.Get(13).ProblemCount == 1, "clogged room 13 can still be assigned (1 problem: the clog)");
             Room.Get(12).ServerBreakLamp();
             var g = spawner.ServerSpawn(false);
             yield return WaitFor(() => g.State.Value == GuestState.WaitForm, 40f);
@@ -165,11 +166,9 @@ namespace Friendslop
             hands.ServerTake(new HeldItem(ItemType.Form));
             g.ServerInteract(hands, hands.Held.Value);
             yield return WaitFor(() => g.State.Value == GuestState.WaitKey, 10f);
-            board.ServerTake(13);
             hands.ServerTake(new HeldItem(ItemType.Key, 13));
-            g.ServerInteract(hands, hands.Held.Value);
-            Check(g.State.Value == GuestState.WaitKey && hands.Held.Value == new HeldItem(ItemType.Key, 13), "guest refuses the key of the clogged room");
-            board.slots[12].ServerInteract(hands, hands.Held.Value);
+            Check(g.Hint(hands.Held.Value).Contains("НЕ готов"), "hint for the clogged room's key warns: not ready");
+            hands.ServerClear();
             board.ServerTake(12);
             hands.ServerTake(new HeldItem(ItemType.Key, 12));
             g.ServerInteract(hands, hands.Held.Value);
@@ -180,8 +179,8 @@ namespace Friendslop
             hands.ServerClear();
             m0 = gs.Money.Value;
             g.ServerInteract(hands, hands.Held.Value);
-            int expect = cfg.guestPays - cfg.lampPenalty;
-            Check(gs.Money.Value == m0 + expect && hands.Held.Value == new HeldItem(ItemType.Key, 12), $"guest with a broken lamp paid {gs.Money.Value - m0} $ (expected {expect} $ = {cfg.guestPays} - {cfg.lampPenalty})");
+            int expect = Mathf.RoundToInt(cfg.guestPays * (1f - cfg.oneProblemPayCut));
+            Check(g.PayCut.Value == 50 && gs.Money.Value == m0 + expect && hands.Held.Value == new HeldItem(ItemType.Key, 12), $"guest with a broken lamp (1 problem) paid {gs.Money.Value - m0} $ (expected {expect} $ = {cfg.guestPays} - 50%)");
             board.slots[11].ServerInteract(hands, hands.Held.Value);
             Room.Get(13).ServerSetReady();
 

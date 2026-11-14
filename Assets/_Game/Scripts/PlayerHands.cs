@@ -304,11 +304,13 @@ namespace Friendslop
             var desk = MotelMap.Instance != null ? MotelMap.Instance.receptionDesk : null;
             float best = float.MaxValue;
             Collider hit = null;
+            bool mop = self != null && self.Held.Value.type == ItemType.Mop;
             for (int i = 0; i < n; i++)
             {
                 var h = hits[i];
                 if (h.distance >= best) continue;
                 if (self != null && h.collider.GetComponentInParent<PlayerHands>() == self) continue;   // свой корпус
+                if (!mop && h.collider.GetComponentInParent<DirtStain>() != null) continue;             // V6: пятно грязи на полу целимо только шваброй, лучи E не гасит
                 if (desk != null && h.collider.transform == desk) continue;              // столешница ресепшена
                 best = h.distance; hit = h.collider;
             }

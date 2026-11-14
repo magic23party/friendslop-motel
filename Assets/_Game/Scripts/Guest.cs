@@ -17,7 +17,9 @@ namespace Friendslop
         WaitCheckOut,   // у стойки, ждёт выписки
         Leaving,        // идёт к выходу (деспавн на выходе)
         Down,           // (C5) лежит после ударов (npcDownTime), потом уходит
-        Brawl           // (C5) дерётся с другим гостем в коридоре, пока игроки не уложат обоих
+        Brawl,          // (C5) дерётся с другим гостем в коридоре, пока игроки не уложат обоих
+        ToToilet,       // (V6) идёт в туалет (сначала к двери, потом внутрь)
+        AtToilet        // (V6) стоит в туалете (или у двери засорённого туалета — уйдёт недовольным)
     }
 
     /// <summary>
@@ -33,8 +35,33 @@ namespace Friendslop
         public static readonly List<Guest> All = new List<Guest>();
 
         /// <summary>Самотест -guesttest: все интервалы короче в 10 раз, гости бегают втрое быстрее.</summary>
-        public static readonly bool Fast = NetBootstrap.Arg("-guesttest") || NetBootstrap.Arg("-fighttest") || NetBootstrap.Arg("-hammertest") || NetBootstrap.Arg("-shoptest") || NetBootstrap.Arg("-toilettest");
+        public static readonly bool Fast = NetBootstrap.Arg("-guesttest") || NetBootstrap.Arg("-fighttest") || NetBootstrap.Arg("-hammertest") || NetBootstrap.Arg("-shoptest") || NetBootstrap.Arg("-toilettest") || NetBootstrap.Arg("-dirttest");
         public static float TimeScale => Fast ? 10f : 1f;
+
+        static readonly string[] TestFlags = { "-guesttest", "-fighttest", "-hammertest", "-shoptest", "-roomtest", "-daytest", "-toilettest", "-dirttest", "-shot" };
+        static bool? inTest;
+        static bool InTest
+        {
+            get
+            {
+                if (inTest == null) { bool t = false; foreach (var f in TestFlags) t |= NetBootstrap.Arg(f); inTest = t; }
+                return inTest.Value;
+            }
+        }
+        /// <summary>V6: случайные «грязные» гости. В самотестах и скриншотах выключено (гостей задают явно).</summary>
+        public static bool RandomDirty => !InTest;
+        /// <summary>V6: гости ходят в туалет. Выключено в чужих самотестах (они считают гостей и задачи), включено в -dirttest; null — по флагам.</summary>
+        public static bool? VisitsOverride;
+        public static bool ToiletVisitsEnabled => VisitsOverride ?? (!InTest || NetBootstrap.Arg("-dirttest"));
+        /// <summary>V6: гость в туалете/у его двери (сервер и клиенты).</summary>
+        public static int ToiletGuestCount()
+        {
+            int n = 0;
+            foreach (var g in All) if (g != null && g.IsSpawned && (g.State.Value == GuestState.ToToilet || g.State.Value == GuestState.AtToilet)) n++;
+            return n;
+        }
+        /// <summary>Сколько визитов в туалет состоялось / сколько гостей ушли от двери засорённого (лог и самотесты).</summary>
+        public static int StatToiletVisits, StatToiletBlocked;
 
         /// <summary>Счётчики для лога [STATS] (сервер): пришло / заселено / выехало и заплатило / ушло из мотеля.</summary>
         public static int StatSpawned, StatSettled, StatPaid, StatLeft;
@@ -56,6 +83,10 @@ namespace Friendslop
         public NetworkVariable<int> Hp = new NetworkVariable<int>(3);
         /// <summary>Сид внешнего вида (P2): рост, телосложение, цвета, шляпа/очки/чемодан. Один сид — одинаковый гость у всех клиентов.</summary>
         public NetworkVariable<int> Look = new NetworkVariable<int>(0);
+        /// <summary>V6: на сколько % гость недоплатит за номер с проблемами (0 / 50 / 100); над головой — злой смайлик и «−N% $».</summary>
+        public NetworkVariable<byte> PayCut = new NetworkVariable<byte>(0);
+        /// <summary>V6: гость ушёл от двери засорённого туалета недовольным (над головой «Туалет засорён!»).</summary>
+        public NetworkVariable<bool> Unhappy = new NetworkVariable<bool>(false);
 
         // сервер
         PlayerCombat aggroTarget;   // кого бьёт (ударил гостя)
@@ -65,6 +96,16 @@ namespace Friendslop
         bool brawlArrived;
         Vector3 brawlSpot;
         bool nonPayer;
+        bool dirty;             // V6: «грязный» гость — оставляет пятна на полу по пути
+        int dirtLeft;           // сколько пятен ещё может оставить
+        float dirtAcc;          // пройдено с прошлого пятна, м
+        Vector3 lastPos;
+        int roomProblems;       // V6: сколько проблем гость насчитал в номере при входе
+        double nextToiletAt, toiletEnd;
+        int toiletLeg;          // 0 — идёт к двери, 1 — внутрь
+        int toiletSlot;
+        bool toiletBlocked;     // туалет засорён: гость стоит у двери
+        Vector3 toiletPoint;
         int keyRoom;            // номер ключа, который гость держит (0 — нет)
         int carriedMoney;       // сколько денег несёт (неплательщик уносит их с собой)
         int ticket;
@@ -86,16 +127,24 @@ namespace Friendslop
         Transform vis;
         Humanoid humanoid;
         StunStars stars;
+        AngryFace face;
+        float penaltyFlash;
         float lie, flashT, punchT, phase;
         int pendingLook;
         /// <summary>Скриншоты (P2): гость замёрз на месте (не ходит, не уходит).</summary>
         public bool ShotFrozen { get; private set; }
 
         public bool IsLiving => State.Value == GuestState.Living;
+        /// <summary>V6: злой смайлик над головой (самотесты).</summary>
+        public AngryFace Face => face;
+        public static string PayCutText(int pct) => "\u2212" + pct + "% $";
         /// <summary>Сервер: можно втянуть в драку (живёт в номере, не отвлечён на агрессию, не побит).</summary>
         public bool CanBrawl => IsServer && IsSpawned && State.Value == GuestState.Living && aggroTarget == null && Hp.Value > 0;
         public int CarriedMoney => carriedMoney;
         public bool IsNonPayer => nonPayer;
+        public bool IsDirty => dirty;
+        /// <summary>Сервер: сколько проблем гость насчитал в номере (самотесты).</summary>
+        public int RoomProblems => roomProblems;
         static GameState Gs => GameState.Instance;
 
         // ------------------------------------------------------------ задачи для HUD
@@ -131,9 +180,11 @@ namespace Friendslop
         // ------------------------------------------------------------ жизненный цикл объекта
 
         /// <summary>Сервер: до Spawn(). Определяет, неплательщик ли гость.</summary>
-        public void ServerInit(bool isNonPayer)
+        public void ServerInit(bool isNonPayer, bool isDirty = false)
         {
             nonPayer = isNonPayer;
+            dirty = isDirty;
+            dirtLeft = isDirty && config != null ? config.dirtMaxPerGuest : 0;
             ticket = ++ticketCounter;
             pendingLook = Random.Range(1, int.MaxValue);          // вид не зависит от nonPayer: неплательщик внешне неотличим
         }
@@ -293,13 +344,16 @@ namespace Friendslop
 
         float patienceDebt;
 
+        /// <summary>V6: во сколько раз быстрее тает терпение у стойки: избытки над 1 от грязного туалета (V3) и грязи на полу складываются.</summary>
+        public static float PatienceMul => 1f + (Toilet.PatienceMul - 1f) + (DirtStain.PatienceMul - 1f);
+
         /// <summary>
-        /// V3: пока туалет грязный/засорён, терпение у стойки тает в toiletPatienceMul раз быстрее: дедлайн (Until) подтягивается к «сейчас»
-        /// на (mul-1)*dt. Двигаем пачками по 0,25 с, чтобы не слать NetworkVariable каждый кадр.
+        /// V3/V6: пока туалет грязный/засорён или пятен на полу много, терпение у стойки тает в PatienceMul раз быстрее: дедлайн (Until)
+        /// подтягивается к «сейчас» на (mul-1)*dt. Двигаем пачками по 0,25 с, чтобы не слать NetworkVariable каждый кадр.
         /// </summary>
         void ToiletDrain(GuestState s)
         {
-            float mul = Toilet.PatienceMul;
+            float mul = PatienceMul;
             if (mul <= 1f || !WaitsAtDesk(s)) { patienceDebt = 0f; return; }
             patienceDebt += Time.deltaTime * (mul - 1f);
             if (patienceDebt < 0.25f) return;
@@ -329,6 +383,7 @@ namespace Friendslop
 
             if (aggroTarget != null && TickAggro(gs.Now)) return;      // ударенный гость гонится за обидчиком, остальное ждёт
             ToiletDrain(State.Value);
+            TickDirt();
 
             double now = gs.Now;
             var s = State.Value;
@@ -363,13 +418,22 @@ namespace Friendslop
                     {
                         Enter(GuestState.Living);
                         stayEnd = now + StayTime() / TimeScale;
+                        nextToiletAt = now + ToiletInterval();
                         StatSettled++;
                         Debug.Log($"[GUEST] #{ticket} settled in room {RoomNo.Value}");
+                        CountRoomProblems();
                     }
                     break;
 
                 case GuestState.Living:
                     if (now >= stayEnd) CheckOutFromRoom(now);
+                    else TryToiletVisit(now);
+                    break;
+
+                case GuestState.ToToilet:
+                case GuestState.AtToilet:
+                    if (now >= stayEnd) { Debug.Log($"[GUEST] #{ticket} time is up, leaves for check-out from the toilet"); CheckOutFromRoom(now); }
+                    else TickToilet(now, s);
                     break;
 
                 case GuestState.ToDesk:
@@ -416,6 +480,105 @@ namespace Friendslop
             FaceDeskWhenIdle(s);
         }
 
+        // ------------------------------------------------------------ V6: грязь, проблемы номера, туалет
+
+        /// <summary>Грязный гость оставляет пятно каждые dirtStep метров пути (от входа до номера), не больше dirtMaxPerGuest.</summary>
+        void TickDirt()
+        {
+            var p = transform.position;
+            var s = State.Value;
+            if (dirtLeft > 0 && (s == GuestState.Arriving || s == GuestState.ToRoom))
+            {
+                var d = p - lastPos; d.y = 0f;
+                if (d.magnitude < 2f) dirtAcc += d.magnitude;            // скачок (телепорт «застрял») не считаем
+                if (dirtAcc >= Mathf.Max(0.5f, config.dirtStep))
+                {
+                    dirtAcc = 0f;
+                    if (DirtStain.ServerSpawn(config, p) != null) dirtLeft--;
+                }
+            }
+            lastPos = p;
+        }
+
+        /// <summary>Сервер: гость вошёл в номер и считает проблемы (недостающие расходники, грязь, засор, лампа): 1 — минус 50 %, 2+ — не платит.</summary>
+        void CountRoomProblems()
+        {
+            var room = Room.Get(RoomNo.Value);
+            roomProblems = room != null ? room.ProblemCount : 0;
+            byte cut = 0;
+            if (roomProblems >= Mathf.Max(1, config.noPayProblems)) cut = 100;
+            else if (roomProblems >= 1) cut = (byte)Mathf.RoundToInt(Mathf.Clamp01(config.oneProblemPayCut) * 100f);
+            PayCut.Value = cut;
+            if (cut > 0)
+            {
+                Debug.Log($"[DIRT] guest #{ticket} found {roomProblems} problem(s) in room {RoomNo.Value}: pays {(cut >= 100 ? "nothing" : (100 - cut) + "%")}");
+                PayCutRpc(cut, true);
+            }
+        }
+
+        int PayFor(int cutPct) => Mathf.RoundToInt(config.guestPays * Mathf.Clamp(100 - cutPct, 0, 100) / 100f);
+
+        float ToiletInterval() => Random.Range(config.toiletVisitMin, Mathf.Max(config.toiletVisitMin, config.toiletVisitMax)) / TimeScale;
+
+        void TryToiletVisit(double now)
+        {
+            if (!ToiletVisitsEnabled || now < nextToiletAt) return;
+            var wc = Toilet.Instance;
+            if (wc == null || !wc.IsSpawned) { nextToiletAt = now + 5.0 / TimeScale; return; }
+            if (stayEnd - now < 12.0 / TimeScale) { nextToiletAt = stayEnd + 1.0; return; }       // скоро выезд — не до туалета
+            int inside = ToiletGuestCount();
+            if (inside >= Mathf.Max(1, config.toiletMaxGuests)) { nextToiletAt = now + 2.0 / TimeScale; return; }
+            toiletSlot = inside;
+            toiletLeg = 0;
+            toiletBlocked = false;
+            toiletPoint = wc.DoorPoint;
+            Enter(GuestState.ToToilet);
+            SetDest(toiletPoint);
+            Debug.Log($"[DIRT] guest #{ticket} goes to the toilet");
+        }
+
+        void TickToilet(double now, GuestState s)
+        {
+            var wc = Toilet.Instance;
+            if (s == GuestState.ToToilet)
+            {
+                if (!Reached()) return;
+                if (toiletLeg == 0)
+                {
+                    if (wc != null && wc.IsSpawned && wc.HasClog)         // засорён: постоит у двери и уйдёт недовольным
+                    {
+                        toiletBlocked = true;
+                        toiletEnd = now + config.toiletBlockedStay / TimeScale;
+                        Unhappy.Value = true;
+                        StatToiletBlocked++;
+                        Enter(GuestState.AtToilet);
+                        Debug.Log($"[DIRT] guest #{ticket} found the toilet clogged, stands at the door");
+                        return;
+                    }
+                    toiletLeg = 1;
+                    toiletPoint = wc != null ? wc.VisitSpot(toiletSlot) : toiletPoint;
+                    SetDest(toiletPoint);
+                    return;
+                }
+                toiletEnd = now + Random.Range(config.toiletStayMin, Mathf.Max(config.toiletStayMin, config.toiletStayMax)) / TimeScale;
+                Enter(GuestState.AtToilet);
+                return;
+            }
+            if (now < toiletEnd) return;
+            if (!toiletBlocked)
+            {
+                StatToiletVisits++;
+                bool worse = wc != null && wc.ServerGuestVisited(false);
+                Debug.Log($"[DIRT] guest #{ticket} used the toilet" + (worse ? $" and left a mess (stain={wc.HasStain} clog={wc.HasClog})" : ""));
+            }
+            else Debug.Log($"[DIRT] guest #{ticket} walks away from the clogged toilet unhappy (no fine)");
+            Unhappy.Value = false;
+            nextToiletAt = now + ToiletInterval();
+            Enter(GuestState.Living);
+            var room = Room.Get(RoomNo.Value);
+            if (room != null) SetDest(Vector3.Lerp(room.inside.position, room.bed.position, 0.35f));
+        }
+
         float StayTime()
         {
             bool big = Gs.PlayerCount.Value > config.smallTeamMax;
@@ -439,16 +602,13 @@ namespace Friendslop
         void CheckOutFromRoom(double now)
         {
             var room = Room.Get(RoomNo.Value);
-            int pay = config.guestPays;
-            if (room != null)
-            {
-                if (room.LampBroken) pay = Mathf.Max(0, pay - config.lampPenalty);        // V2: лампа перегорела — гость платит меньше
-                room.ServerSetNeedsService();
-            }
+            int pay = PayFor(PayCut.Value);          // V6: оплата уже срезана по проблемам, найденным при входе
+            if (room != null) room.ServerSetNeedsService();      // проблемы, с которыми номер заселяли, остаются + новые по старым правилам
             carriedMoney = pay;
             ticket = ++ticketCounter;            // в конец очереди
-            Debug.Log($"[GUEST] #{ticket} leaves room {RoomNo.Value}, heads to check-out with {carriedMoney} $");
+            Debug.Log($"[GUEST] #{ticket} leaves room {RoomNo.Value}, heads to check-out with {carriedMoney} $" + (PayCut.Value > 0 ? $" (-{PayCut.Value}% for {roomProblems} problem(s))" : ""));
             Enter(GuestState.ToDesk);
+            if (PayCut.Value > 0) PayCutRpc(PayCut.Value, false);        // «при выезде»: смайлик и «−N% $» ещё раз
         }
 
         /// <summary>Неплательщик у стойки: бросает ключ, платить не хочет, уходит с деньгами. Над головой «!».</summary>
@@ -542,7 +702,7 @@ namespace Friendslop
         /// <summary>Гость уходит насовсем: ключ на пол, а если он занимал номер — номер требует уборки.</summary>
         void ReleaseRoomAndKey(GuestState from)
         {
-            if (from == GuestState.ToRoom || from == GuestState.Living || from == GuestState.Brawl)
+            if (from == GuestState.ToRoom || from == GuestState.Living || from == GuestState.Brawl || from == GuestState.ToToilet || from == GuestState.AtToilet)
             {
                 var room = Room.Get(RoomNo.Value);
                 if (room != null) room.ServerSetNeedsService();
@@ -641,6 +801,10 @@ namespace Friendslop
                     if (room != null) SetDest(Vector3.Lerp(room.inside.position, room.bed.position, 0.35f));
                     break;
                 }
+                case GuestState.ToToilet:       // V6: остыл — продолжает путь в туалет
+                case GuestState.AtToilet:
+                    SetDest(toiletPoint);
+                    break;
                 default:
                     lastQueueIdx = -1;          // очередь: ServerTick назначит место заново
                     break;
@@ -677,6 +841,16 @@ namespace Friendslop
         void FxRpc(byte kind)
         {
             if (kind == 0) flashT = FlashTime; else punchT = PunchTime;
+        }
+
+        /// <summary>V6: гость недоволен номером (discovery — только что вошёл и насчитал проблемы) или платит урезанную сумму (выезд): смайлик и «−N% $» видят все.</summary>
+        [Rpc(SendTo.Everyone)]
+        void PayCutRpc(byte pct, bool discovery)
+        {
+            penaltyFlash = discovery ? 6f : 4f;
+            var p = transform.position + Vector3.up * 2.7f;
+            Fx.Text(PayCutText(pct), p, new Color(1f, 0.3f, 0.25f));
+            Sfx.Play3D(Snd.Fine, p, 0.8f);
         }
 
         void UpdateVisual()
@@ -722,6 +896,8 @@ namespace Friendslop
             transform.rotation = Quaternion.Euler(0f, yawDeg, 0f);
             if (flag == "down") Enter(GuestState.Down, Gs.Now + 100000);
             else if (flag == "brawl") Enter(GuestState.Brawl);
+            else if (flag == "checkout50" || flag == "checkout100") { PayCut.Value = (byte)(flag == "checkout100" ? 100 : 50); Enter(GuestState.WaitCheckOut, Gs.Now + 25); }
+            else if (flag == "toilet" || flag == "toiletclog") { Unhappy.Value = flag == "toiletclog"; Enter(GuestState.AtToilet); }
         }
 
         // ------------------------------------------------------------ взаимодействие (IInteractable)
@@ -746,9 +922,10 @@ namespace Friendslop
                     if (held.type == ItemType.Key)
                     {
                         var r = Room.Get(held.arg);
-                        return r != null && r.IsReady ? Interact.E("выдать ключ №" + held.arg) : "Номер " + held.arg + " не готов";
+                        if (r == null || !r.CanAssign) return "Номер " + held.arg + " занят или закрыт";
+                        return r.IsReady ? Interact.E("выдать ключ №" + held.arg) : Interact.E("выдать ключ №" + held.arg + " — номер НЕ готов, гость недоплатит");
                     }
-                    return held.IsNone ? "Гостю нужен ключ готового номера (" + LeftSeconds() + " с)" : Interact.Busy;
+                    return held.IsNone ? "Гостю нужен ключ свободного номера (" + LeftSeconds() + " с)" : Interact.Busy;
                 case GuestState.WaitCheckOut:
                     return held.IsNone ? Interact.E("выписать гостя") : Interact.Busy;
                 default:
@@ -772,14 +949,14 @@ namespace Friendslop
                 {
                     if (held.type != ItemType.Key) return;
                     var room = Room.Get(held.arg);
-                    if (room == null || !room.IsReady) return;          // номер занят/грязный/закрыт
+                    if (room == null || !room.CanAssign) return;        // V6: занят/закрыт нельзя; неготовый — можно (проблемы считаются при входе)
                     who.ServerClear();
                     keyRoom = room.index;
                     RoomNo.Value = room.index;
                     room.ServerSetOccupied();
                     Enter(GuestState.ToRoom);
                     SetDest(Vector3.Lerp(room.inside.position, room.bed.position, 0.35f));
-                    Debug.Log($"[GUEST] #{ticket} got key {keyRoom}, heads to room");
+                    Debug.Log($"[GUEST] #{ticket} got key {keyRoom}{(room.IsReady ? "" : " of an UNREADY room")}, heads to room");
                     break;
                 }
 
@@ -792,6 +969,7 @@ namespace Friendslop
                     if (pay > 0) who.ServerTake(new HeldItem(ItemType.Money, pay));     // деньги сразу в кассу
                     StatPaid++;
                     Debug.Log($"[GUEST] #{ticket} checked out, paid {pay} $");
+                    if (PayCut.Value > 0) PayCutRpc(PayCut.Value, false);           // выезд: «−N% $» над головой, пока гость уходит
                     StartLeaving();
                     break;
             }
@@ -818,11 +996,22 @@ namespace Friendslop
                     case GuestState.WaitCheckOut: txt = "Выезд · " + LeftSeconds() + " с"; break;
                     case GuestState.Signing: txt = "Подписывает…"; col = new Color(0.7f, 0.9f, 1f); break;
                     case GuestState.Down: txt = "Без сознания"; col = new Color(0.8f, 0.8f, 0.8f); break;
+                    case GuestState.ToToilet: txt = "Идёт в туалет"; col = new Color(0.75f, 0.85f, 0.9f); break;
+                    case GuestState.AtToilet:
+                        if (Unhappy.Value) { txt = "Туалет засорён!"; col = new Color(1f, 0.55f, 0.25f); }
+                        else { txt = "В туалете"; col = new Color(0.75f, 0.85f, 0.9f); }
+                        break;
                     case GuestState.Brawl: txt = "Драка!"; col = new Color(1f, 0.35f, 0.25f); break;
                 }
                 if ((s == GuestState.WaitForm || s == GuestState.WaitKey || s == GuestState.WaitCheckOut) && LeftSeconds() <= 8.0 / TimeScale)
                     col = new Color(1f, 0.85f, 0.3f);
             }
+            // V6: злой смайлик и «−N% $» над головой (видно всем): при обнаружении проблем, затем снова при выезде
+            penaltyFlash = Mathf.Max(0f, penaltyFlash - Time.deltaTime);
+            int cut = PayCut.Value;
+            bool showFace = cut > 0 && (penaltyFlash > 0f || s == GuestState.ToDesk || s == GuestState.WaitCheckOut || s == GuestState.Leaving);
+            if (showFace && face == null) face = AngryFace.Attach(transform);
+            if (face != null) face.Tick(showFace, showFace ? PayCutText(cut) : "", Camera.main, Time.deltaTime);
             if (txt != lastText)
             {
                 lastText = txt;

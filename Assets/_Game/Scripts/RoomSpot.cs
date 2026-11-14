@@ -25,7 +25,7 @@ namespace Friendslop
             {
                 if (!room.LampBroken) return "";
                 if (held.type == ItemType.Bulb) return Interact.E("вкрутить лампочку");
-                return held.IsNone ? "Лампа перегорела — нужна лампочка (гость платит на 20 $ меньше)" : "";
+                return held.IsNone ? "Лампа перегорела — нужна лампочка (иначе это проблема для гостя)" : "";
             }
             if (room.State != RoomState.NeedsService) return "";
             int idx = Room.SupplyIndex(held.type);

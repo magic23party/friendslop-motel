@@ -44,6 +44,13 @@ namespace Friendslop
             Host.SpawnText((delta > 0 ? "+" : "-") + Mathf.Abs(delta) + " $", p, delta > 0 ? new Color(0.45f, 1f, 0.5f) : new Color(1f, 0.4f, 0.35f));
         }
 
+        /// <summary>Всплывашка с произвольным текстом (V6: «−50% $» над гостем).</summary>
+        public static void Text(string text, Vector3 p, Color col)
+        {
+            if (Cfg == null || Cfg.fxLabelMat == null || Application.isBatchMode) return;
+            Host.SpawnText(text, p, col);
+        }
+
         /// <summary>Камера, на которую смотрит игрок сейчас (для поворота всплывашек).</summary>
         public static Camera ViewCam()
         {

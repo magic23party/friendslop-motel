@@ -6,7 +6,7 @@ namespace Friendslop
 {
     /// <summary>
     /// Самотест V3 (флаг -toilettest, только на хосте; гости в 10 раз быстрее, сантехник — секунды).
-    /// Туалет: чистый на старте, сам пачкается по таймеру (без засора в день 1, со 2-го дня засор бывает), моется шваброй (ЛКМ держать),
+    /// Туалет: чистый на старте, пачкается от визитов гостей (V6; без засора в день 1, со 2-го дня засор бывает), моется шваброй (ЛКМ держать),
     /// засор прочищается вантузом или вызванным сантехником (общая механика DirtySite), пока он грязный — терпение гостей у стойки тает
     /// в toiletPatienceMul раз быстрее, задача «Туалет» в списке (срочная, если у стойки ждут), электронная таблица и табло номеров показывают
     /// данные, «Заново» чистит туалет. Итог — строка "[TOILET] selftest OK (all done)" или "FAIL count=N".
@@ -86,11 +86,13 @@ namespace Friendslop
             Check(wc != null && !wc.Dirty && Toilet.PatienceMul == 1f && Find("Туалет") == null, "toilet clean at shift start: no task, patience multiplier x1");
             Check(wc.stainSpot != null && wc.clogSpot != null && wc.stainSpot.sceneId > 0 && wc.stainSpot.sceneId != wc.clogSpot.sceneId, "toilet has its own mop and plunger targets (scene ids " + wc.stainSpot.sceneId + ", " + wc.clogSpot.sceneId + ")");
 
-            // ================= B: само пачкается по таймеру (день 1 — только пятно)
-            float maxWait = cfg.toiletDirtyMax / Guest.TimeScale + 6f;
-            yield return WaitFor(() => wc.Dirty, maxWait);
-            Check(wc.HasStain && !wc.HasClog, $"toilet got dirty by itself within {maxWait:0}s: stain, no clog on day 1");
-            Toilet.AutoOverride = false;                         // дальше — только руками
+            // ================= B: сам по себе не пачкается (V6: нет таймера), пачкается от визитов гостей (день 1 — только пятно)
+            yield return new WaitForSeconds(4f);
+            Check(!wc.Dirty, "no timer any more: clean toilet stays clean without visits");
+            int stains = 0, clogs1 = 0;
+            for (int i = 0; i < 300; i++) { wc.ServerSetDirty(false, false, false); wc.ServerGuestVisited(false); if (wc.HasStain) stains++; if (wc.HasClog) clogs1++; }
+            Check(stains > 0 && stains < 300 && clogs1 == 0, $"visits dirty the toilet by chance: {stains}/300 ~{cfg.toiletDirtyChance * 100f:0}% stain, no clog on day 1");
+            wc.ServerSetDirty(true, false);
             yield return new WaitForSeconds(0.3f);
             var tl = Find("Туалет");
             Check(tl.HasValue && tl.Value.icons != null && tl.Value.icons.Length == 1 && tl.Value.icons[0] == ItemType.Mop, "task list: «Туалет» with a mop icon");
@@ -170,13 +172,13 @@ namespace Friendslop
             // ================= G: засор туалета — со 2-го дня
             int clog1 = 0, clog2 = 0;
             gs.Day.Value = 1;
-            for (int i = 0; i < 200; i++) { wc.ServerSetDirty(false, false, false); wc.ServerRollDirty(); if (wc.HasClog) clog1++; }
+            for (int i = 0; i < 200; i++) { wc.ServerSetDirty(false, false, false); wc.ServerGuestVisited(false); if (wc.HasClog) clog1++; }
             gs.Day.Value = 2;
-            for (int i = 0; i < 300; i++) { wc.ServerSetDirty(false, false, false); wc.ServerRollDirty(); if (wc.HasClog) clog2++; }
+            for (int i = 0; i < 600; i++) { wc.ServerSetDirty(false, false, false); wc.ServerGuestVisited(false); if (wc.HasClog) clog2++; }
             gs.Day.Value = 1;
             wc.ServerSetDirty(false, false);
             Check(clog1 == 0, "day 1: toilet never clogs (200 rolls)");
-            Check(clog2 > 0 && clog2 < 300, $"day 2: toilet clogs sometimes ({clog2}/300 ~{cfg.toiletClogChance * 100f:0}%)");
+            Check(clog2 > 0 && clog2 < 600, $"day 2: toilet clogs sometimes ({clog2}/600 ~{cfg.toiletVisitClogChance * 100f:0}%)");
 
             // ================= H: электронная таблица и табло номеров показывают состояние мира
             var wall = FindAnyObjectByType<TaskWall>();

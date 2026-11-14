@@ -145,7 +145,7 @@ namespace Friendslop
             yield return WaitFor(() => Gone(gA), 60f);
             Check(Gone(gA), "A left through the exit");
 
-            // ================= B: неплательщик + отказ выдать ключ неготового номера + обслуживание номера
+            // ================= B: неплательщик + V6: ключ неготового номера можно выдать (проблемы остаются) + обслуживание номера
             var gB = spawner.ServerSpawn(true);
             yield return WaitFor(() => gB.State.Value == GuestState.WaitForm, 40f);
             Check(gB.State.Value == GuestState.WaitForm, "B waits for form");
@@ -153,26 +153,21 @@ namespace Friendslop
             hands.ServerTake(new HeldItem(ItemType.Form));
             gB.ServerInteract(hands, hands.Held.Value);
             yield return WaitFor(() => gB.State.Value == GuestState.WaitKey, 10f);
-            // ключ неготового номера (rA ещё NeedsService)
-            Check(roomA.State == RoomState.NeedsService, "room " + rA + " still needs service");
+            // ключ неготового номера (rA ещё NeedsService): V6 — гость его берёт, проблемы никуда не деваются
+            Check(roomA.State == RoomState.NeedsService && roomA.ProblemCount > 0, "room " + rA + " still needs service: " + roomA.ProblemCount + " problem(s)");
+            int problemsBefore = roomA.ProblemCount;
             board.ServerTake(rA);
             hands.ServerTake(new HeldItem(ItemType.Key, rA));
+            Check(gB.Hint(hands.Held.Value).Contains("НЕ готов"), "key hint warns: the room is not ready");
             gB.ServerInteract(hands, hands.Held.Value);
-            Check(gB.State.Value == GuestState.WaitKey && hands.Held.Value == new HeldItem(ItemType.Key, rA) && roomA.State == RoomState.NeedsService,
-                "B rejects key of a dirty room");
-            HangKey(rA);
-            ServiceRoom(roomA);
-            Check(roomA.IsReady && Room.PickReady(board) != null, "room " + rA + " serviced -> Ready (supplies + mop)");
-            var rB = Room.PickReady(board);
-            board.ServerTake(rB.index);
-            hands.ServerTake(new HeldItem(ItemType.Key, rB.index));
-            gB.ServerInteract(hands, hands.Held.Value);
-            Check(hands.Held.Value.IsNone && gB.State.Value == GuestState.ToRoom, "B got key " + rB.index);
+            Check(hands.Held.Value.IsNone && gB.State.Value == GuestState.ToRoom && roomA.State == RoomState.Occupied && roomA.ProblemCount == problemsBefore,
+                "B accepts the key of an UNREADY room; the room is Occupied and keeps its " + problemsBefore + " problem(s)");
+            var rB = roomA;
             yield return WaitFor(() => gB.State.Value == GuestState.WaitCheckOut || gB.Marked.Value, 90f);
             yield return WaitFor(() => gB.Marked.Value, 10f);
             m0 = gs.Money.Value;
-            Check(gB.Marked.Value && gB.State.Value == GuestState.Leaving && gs.Money.Value == m0 && gB.CarriedMoney == cfg.guestPays,
-                "B (non-payer) refused to pay: marked '!', keeps " + gB.CarriedMoney + " $");
+            Check(gB.Marked.Value && gB.State.Value == GuestState.Leaving && gs.Money.Value == m0 && gB.CarriedMoney == Mathf.RoundToInt(cfg.guestPays * (100 - gB.PayCut.Value) / 100f),
+                "B (non-payer) refused to pay: marked '!', keeps " + gB.CarriedMoney + " $ (pay cut " + gB.PayCut.Value + "% for the unready room)");
             var keyB = FindFloor(ItemType.Key, rB.index);
             Check(keyB != null, "B dropped key " + rB.index + " on the floor");
             yield return null;

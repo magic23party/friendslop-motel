@@ -76,14 +76,27 @@ MonoBehaviour:
   clogChance: 0.2
   lampFromDay: 3
   lampChance: 0.2
-  lampPenalty: 20
-  toiletDirtyMin: 60
-  toiletDirtyMax: 90
   toiletClogFromDay: 2
-  toiletClogChance: 0.35
   toiletPatienceMul: 1.5
   wakeInvuln: 0.5
   boardRefresh: 0.25
+  toiletVisitMin: 60
+  toiletVisitMax: 120
+  toiletMaxGuests: 2
+  toiletStayMin: 5
+  toiletStayMax: 10
+  toiletBlockedStay: 3
+  toiletDirtyChance: 0.3
+  toiletVisitClogChance: 0.1
+  dirtyGuestChance: 0.1
+  dirtStep: 3
+  dirtMaxPerGuest: 8
+  dirtMopTime: 2
+  dirtThreshold: 6
+  dirtPatienceMul: 1.5
+  oneProblemPayCut: 0.5
+  noPayProblems: 2
+  dirtPrefab: {fileID: 3388698398517261815, guid: 2738847a67bfa444facadba0d8f33e65, type: 3}
   moveSpeed: 5
   runMultiplier: 1.6
   mouseSensitivity: 0.12
