@@ -57,7 +57,7 @@ namespace Friendslop
         public int startMoney = 150;
         public int guestPays = 50;
         [Header("День и ночь (V1)")]
-        public float dayLength = 480f;        // день 8 мин: гости приходят
+        public float dayLength = 330f;        // день 5:30: гости приходят
         public float nightLength = 180f;      // ночь 3 мин: новых гостей нет, счёт налога выставлен, дедлайн — конец ночи
         public int taxBase = 100;             // налог в день 1, $
         public int taxStep = 50;              // прибавка за каждый следующий день, $

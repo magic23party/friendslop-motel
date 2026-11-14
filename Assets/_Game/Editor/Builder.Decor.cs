@@ -348,6 +348,18 @@ namespace Friendslop.EditorTools
 
         // ---------------------------------------------------------------- ресепшен
 
+        /// <summary>V5: звонок на стойке — интерактив. Вызывается после BuildMotelLayout/BuildDecor, чтобы sceneId был последним (старые id не сдвигаются).</summary>
+        static void SetupBell()
+        {
+            var go = GameObject.Find("Bell");
+            if (go == null) { Debug.LogError("[BUILD] Bell decor not found"); return; }
+            var bc = go.AddComponent<BoxCollider>();                  // маленький: не перехватывает луч E у бланков/ключей/гостя
+            bc.center = new Vector3(0, 0.08f, 0); bc.size = new Vector3(0.26f, 0.18f, 0.26f);
+            var bell = Interactable<Bell>(go);
+            bell.button = go.transform.Find("Button");
+            bell.dome = go.transform.Find("Dome");
+        }
+
         static void DecorReception(Transform r)
         {
             // стойка: фасад из бирюзовых панелей, цоколь и кант

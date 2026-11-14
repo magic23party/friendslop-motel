@@ -333,6 +333,10 @@ namespace Friendslop
             return Interact.Distance(t, Eye) <= config.interactDistance + config.interactReachSlack;
         }
 
+        /// <summary>Сервер: звонок на стойке принят — «дзынь» и нажатие кнопки у всех (V5, Bell).</summary>
+        [Rpc(SendTo.Everyone)]
+        public void BellRpc() { if (Bell.Instance != null) Bell.Instance.PlayLocal(); }
+
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
         void InteractRpc(NetworkObjectReference netRef, int sceneId)
         {

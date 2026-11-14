@@ -45,6 +45,8 @@ namespace Friendslop
 
         /// <summary>Сервер: неуязвим (только что очнулся). Удар, оглушение и удары гостей не проходят.</summary>
         public bool Invulnerable => Time.time < protectedUntil;
+        /// <summary>Только самотесты: неуязвимость на seconds секунд (гость бьёт впустую, но счётчик Guest.Punches растёт).</summary>
+        public void ServerTestShield(float seconds) { if (IsServer) protectedUntil = Time.time + seconds; }
         /// <summary>Сервер, для самотестов: сколько ударов/оглушений погасила неуязвимость.</summary>
         public static int InvulnBlocks;
 

@@ -19,7 +19,7 @@ namespace Friendslop
         static readonly AudioClip[] clips = new AudioClip[Count];
         static readonly float[] lastAt = new float[Count];
         // минимальный интервал между одинаковыми звуками, с (realtime)
-        static readonly float[] gap = { 0.40f, 0.07f, 0.12f, 0.06f, 0.08f, 0.10f, 0.15f, 1.2f, 0.05f, 0.03f, 0.25f, 1.0f, 1.0f, 0.8f };
+        static readonly float[] gap = { 0.25f, 0.07f, 0.12f, 0.06f, 0.08f, 0.10f, 0.15f, 1.2f, 0.05f, 0.03f, 0.25f, 1.0f, 1.0f, 0.8f };
 
         static AudioSource[] pool;
         static int next;

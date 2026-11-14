@@ -12,6 +12,7 @@ namespace Friendslop
     /// 3) удар игрок→игрок (нужен второй игрок, иначе пункт пропускается) → отключка 1 с, предмет выпал;
     /// 4) драка двух гостей: штраф −5 $, строка в списке задач, продолжается, пока не уложены оба, потом кончается;
     /// 5) (V3) неуязвимость wakeInvuln после пробуждения: оглушение/удары гостя/удар коллеги не проходят, через 0,6 с проходят.
+    /// 4 (V5): удар по одному из драчунов → оба нападают на ударившего, драка/штраф продолжаются; 6 (V5): звонок на стойке.
     /// Итог — строка "[FIGHT] selftest OK/FAIL".
     /// </summary>
     public class FightSelfTest : MonoBehaviour
@@ -223,10 +224,30 @@ namespace Friendslop
             int m1 = gs.Money.Value;
             Check(m1 <= m0 - Mathf.RoundToInt(cfg.brawlDrainAmount), $"brawl fine: till {m0} -> {m1}");
 
-            gC.ServerHit(hands); gC.ServerHit(hands); gC.ServerHit(hands);
+            // V5: удар по одному драчуну — оба бросают драку друг с другом и нападают на ударившего (неуязвимый хост, чтобы не сбили до проверки)
+            Teleport(me, MotelMap.Instance.corridorPoint.position + Vector3.right * 7f);      // агрессия живёт npcAggroTimeout/10 = 2 с — рядом с дракой
+            yield return new WaitForSeconds(0.2f);
+            me.ServerTestShield(30f);
+            int pcC = gC.Punches, pcD = gD.Punches;
+            gC.ServerHit(hands);
+            Check(gC.Hp.Value == cfg.npcHp - 1 && gC.AggroTarget == me && gD.AggroTarget == me, "V5: hit on brawler C -> both C and D are angry at the host");
+            Check(gC.State.Value == GuestState.Brawl && gD.State.Value == GuestState.Brawl && Guest.BrawlCount() == 2, "V5: the brawl event goes on (both still in GuestState.Brawl)");
+            yield return WaitFor(() => gC.Punches > pcC && gD.Punches > pcD, 25f);
+            Check(gC.Punches > pcC && gD.Punches > pcD, $"V5: both brawlers punch the host (C +{gC.Punches - pcC}, D +{gD.Punches - pcD})");
+            gC.ServerCalm(); gD.ServerCalm();
+            Check(gC.AggroTarget == null && gD.AggroTarget == null && gC.State.Value == GuestState.Brawl && gD.State.Value == GuestState.Brawl && Guest.BrawlCount() == 2,
+                "V5: cooled down brawlers go back to the brawl");
+            me.ServerTestShield(0f);
+            gs.ServerAddMoney(500);
+            m0 = gs.Money.Value;
+            yield return new WaitForSeconds(DrainSec(cfg) * 2.6f);
+            Check(gs.Money.Value < m0, $"V5: the fine goes on while both are on their feet: {m0} -> {gs.Money.Value}");
+
+            gC.ServerHit(hands); gC.ServerHit(hands); gD.ServerCalm();
             yield return null;
             Check(gC.State.Value == GuestState.Down && Guest.BrawlCount() == 1, "C laid down, brawl goes on with D");
             Check(Room.Get(rC).State == RoomState.NeedsService && FindFloor(ItemType.Key, rC) != null, "C's room needs service, his key lies on the floor");
+            gs.ServerAddMoney(500);
             m0 = gs.Money.Value;
             yield return new WaitForSeconds(DrainSec(cfg) * 2.6f);
             Check(gs.Money.Value < m0, $"the fine continues while D is still fighting: {m0} -> {gs.Money.Value}");
@@ -287,6 +308,25 @@ namespace Friendslop
             me.ServerKnockOut(1f);
             Check(me.IsDown.Value, "5: knock-out 0.6 s after waking up passes");
             yield return WaitFor(() => !me.IsDown.Value && (other == null || !other.IsDown.Value), 5f);
+
+            // ================= 6 (V5): звонок на стойке — сервер принимает E, RPC доходит без исключений, кулдаун 0,3 с
+            var bell = Bell.Instance;
+            Check(bell != null && bell.sceneId > 0 && StaticInteractable.ById(bell.sceneId) == bell, "6: bell exists on the desk as a static interactable");
+            if (bell != null)
+            {
+                hands.ServerClear();
+                hands.ServerTake(new HeldItem(ItemType.Towel));      // звонок работает и с занятыми руками
+                int srv0 = bell.ServerRings, loc0 = bell.LocalRings;
+                bell.ServerInteract(hands, hands.Held.Value);
+                bell.ServerInteract(hands, hands.Held.Value);        // сразу же — в кулдауне
+                yield return new WaitForSeconds(0.1f);
+                Check(bell.ServerRings == srv0 + 1 && bell.LocalRings == loc0 + 1, $"6: one ring accepted, the immediate second one is refused by the {Bell.Cooldown} s cooldown");
+                yield return new WaitForSeconds(Bell.Cooldown + 0.1f);
+                bell.ServerInteract(hands, hands.Held.Value);
+                yield return new WaitForSeconds(0.1f);
+                Check(bell.ServerRings == srv0 + 2 && bell.LocalRings == loc0 + 2, "6: ring again after the cooldown");
+                hands.ServerClear();
+            }
 
             Guest.ServerDespawnAll();
             yield return null; yield return null;

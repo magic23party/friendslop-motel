@@ -63,6 +63,7 @@ namespace Friendslop
         float nextAttack, nextChase, baseSpeed;
         Guest brawlPartner;
         bool brawlArrived;
+        Vector3 brawlSpot;
         bool nonPayer;
         int keyRoom;            // номер ключа, который гость держит (0 — нет)
         int carriedMoney;       // сколько денег несёт (неплательщик уносит их с собой)
@@ -510,10 +511,21 @@ namespace Friendslop
             Hp.Value--;
             FxRpc(0);
             Debug.Log($"[FIGHT] guest #{ticket} hit by {(attacker != null ? attacker.name : "?")}, hp={Hp.Value} ({s})");
-            if (Hp.Value <= 0) { GoDown(); return; }
             var who = attacker != null ? attacker.GetComponent<PlayerCombat>() : null;
-            if (s != GuestState.Brawl && who != null && !who.IsDown.Value) StartAggro(who);      // дерущиеся друг с другом на игрока не отвлекаются
+            bool canAggro = who != null && !who.IsDown.Value;
+            // V5: удар по одному из драчунов — оба бросают драку друг с другом и вдвоём нападают на ударившего
+            // (State остаётся Brawl: драка как событие и штраф идут, пока оба на ногах)
+            if (s == GuestState.Brawl && canAggro && brawlPartner != null && brawlPartner.IsSpawned
+                && brawlPartner.State.Value == GuestState.Brawl && brawlPartner.Hp.Value > 0) brawlPartner.StartAggro(who);
+            if (Hp.Value <= 0) { GoDown(); return; }
+            if (canAggro) StartAggro(who);
         }
+
+        /// <summary>Только самотесты: гость остывает (как по таймауту агрессии) и возвращается к прежнему делу.</summary>
+        public void ServerCalm() { if (!IsServer) return; EndAggro(); ResumeAfterAggro(); }
+        public PlayerCombat AggroTarget => aggroTarget;
+        /// <summary>Сколько раз гость ударил игрока в агрессии (самотесты).</summary>
+        public int Punches { get; private set; }
 
         /// <summary>C5: гость сбегает (игрок потерял сознание / гость побеждён): ключ роняет, номер освобождает, идёт к выходу.</summary>
         public void ServerFlee(bool dropMoney)
@@ -597,6 +609,7 @@ namespace Friendslop
             {
                 nextAttack = Time.time + config.npcAttackInterval / TimeScale;
                 FxRpc(1);
+                Punches++;
                 if (t.ServerGuestHit())        // игрок потерял сознание — гость сбегает, не заплатив
                 {
                     EndAggro();
@@ -616,6 +629,10 @@ namespace Friendslop
             {
                 case GuestState.Leaving:
                     SetDest(MotelMap.Instance.guestExit.position);
+                    break;
+                case GuestState.Brawl:          // V5: остыл после удара по драчуну — возвращается в драку
+                    brawlArrived = false;
+                    SetDest(brawlSpot);
                     break;
                 case GuestState.ToRoom:
                 case GuestState.Living:
@@ -638,6 +655,7 @@ namespace Friendslop
             if (!IsServer || !IsSpawned) return;
             EndAggro();
             brawlPartner = partner;
+            brawlSpot = spot;
             brawlArrived = false;
             Enter(GuestState.Brawl);
             SetDest(spot);

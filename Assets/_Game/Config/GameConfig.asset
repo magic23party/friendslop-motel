@@ -54,7 +54,7 @@ MonoBehaviour:
   playerHitForget: 10
   startMoney: 150
   guestPays: 50
-  dayLength: 480
+  dayLength: 330
   nightLength: 180
   taxBase: 100
   taxStep: 50

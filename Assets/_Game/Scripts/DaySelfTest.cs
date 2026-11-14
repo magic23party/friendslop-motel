@@ -39,6 +39,7 @@ namespace Friendslop
             // ---- день 1
             Check(gs.Phase.Value == GamePhase.Playing && !gs.Night.Value && gs.Day.Value == 1 && !gs.TaxDue.Value, "day 1 starts: day, no invoice");
             Check(gs.TaxAmount == cfg.taxBase && gs.TaxFor(2) == cfg.taxBase + cfg.taxStep, $"tax grows: day1={gs.TaxFor(1)} day2={gs.TaxFor(2)}");
+            Check(Mathf.Approximately(cfg.dayLength, 330f) && Mathf.Approximately(cfg.nightLength, 180f), "V5: config day 5:30 / night 3:00 (" + cfg.dayLength + "/" + cfg.nightLength + ")");
             Check(Mathf.Abs(gs.PhaseLeft - gs.DayLength) < 3f, "day length ~" + gs.DayLength + "s, left=" + gs.PhaseLeft.ToString("0"));
             yield return WaitFor(() => gs.Night.Value, gs.DayLength + 15f);
             Check(Guest.StatSpawned > 0, "guests spawned during day 1: " + Guest.StatSpawned);

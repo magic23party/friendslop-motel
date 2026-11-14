@@ -305,6 +305,7 @@ namespace Friendslop.EditorTools
 
             BuildMotelLayout(cfg, db);                   // C2: лобби, склад, доска ключей, коридор с номерами
             BuildDecor();                                // P1: потолок, окна, плитка, ресепшен, коридор, улица (без коллайдеров)
+            SetupBell();                                 // V5: звонок на стойке (последний sceneId)
             BuildGuestSystems(cfg);                      // C4: спавнер гостей
             BakeNavMesh();                               // C4: NavMeshSurface (после всей геометрии)
 
